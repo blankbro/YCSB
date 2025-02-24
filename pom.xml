@@ -184,6 +184,7 @@ LICENSE file.
     <module>hbase2</module>
     <module>ignite</module>
     <module>infinispan</module>
+    <module>influxdb1.8</module>
     <module>jdbc</module>
     <module>kudu</module>
     <module>maprdb</module>
