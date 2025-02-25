@@ -16,7 +16,6 @@
       <groupId>site.ycsb</groupId>
       <artifactId>core</artifactId>
       <version>${project.version}</version>
-      <scope>provided</scope>
     </dependency>
     <!-- https://mvnrepository.com/artifact/org.influxdb/influxdb-java -->
     <dependency>
