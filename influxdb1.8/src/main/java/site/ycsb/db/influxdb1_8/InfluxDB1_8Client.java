@@ -1,5 +1,7 @@
 package site.ycsb.db.influxdb1_8;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.influxdb.InfluxDB;
 import org.influxdb.InfluxDBFactory;
 import org.influxdb.dto.Point;
@@ -11,6 +13,8 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 public class InfluxDB1_8Client extends site.ycsb.DB {
+
+  private static Logger log = LogManager.getLogger(InfluxDB1_8Client.class);
 
   private static final String TAG_NAME = "rowkey";
   private InfluxDB influxDB;
@@ -29,6 +33,9 @@ public class InfluxDB1_8Client extends site.ycsb.DB {
     batchInterval = Integer.parseInt(props.getProperty("influxdb.batchinterval", "1"));
 
     influxDB = InfluxDBFactory.connect(url, user, password);
+    if (!influxDB.databaseExists(bucket)) {
+      influxDB.createDatabase(bucket);
+    }
     influxDB.setDatabase(bucket);
     if (batchSize > 1) {
       influxDB.enableBatch(batchSize, batchInterval, TimeUnit.MILLISECONDS);
@@ -47,11 +54,11 @@ public class InfluxDB1_8Client extends site.ycsb.DB {
     if (queryResult.getResults().isEmpty()) {
       return Status.NOT_FOUND;
     }
-    QueryResult.Result firstQueryResult = queryResult.getResults().getFirst();
+    QueryResult.Result firstQueryResult = queryResult.getResults().get(0);
     if (firstQueryResult.getSeries().isEmpty()) {
       return Status.NOT_FOUND;
     }
-    QueryResult.Series series = firstQueryResult.getSeries().getFirst();
+    QueryResult.Series series = firstQueryResult.getSeries().get(0);
     for (int i = 0; i < series.getValues().size(); i++) {
       List<Object> values = series.getValues().get(i);
       for (int j = 0; j < values.size(); j++) {
@@ -89,17 +96,18 @@ public class InfluxDB1_8Client extends site.ycsb.DB {
   @Override
   public Status insert(String table, String key, Map<String, ByteIterator> values) {
     try {
-      Point.Builder builder = Point.measurement(table)
+      Point.Builder pointBuilder = Point.measurement(table)
           .time(System.currentTimeMillis(), TimeUnit.MILLISECONDS)
           .tag(TAG_NAME, key);// 将 YCSB 的 key 作为 Tag
 
       for (Map.Entry<String, ByteIterator> entry : values.entrySet()) {
-        builder.addField(entry.getKey(), entry.getValue().toString());
+        pointBuilder.addField(entry.getKey(), entry.getValue().toString());
       }
 
-      influxDB.write(builder.build());
+      influxDB.write(pointBuilder.build());
       return Status.OK;
     } catch (Exception e) {
+      log.error(e.getMessage(), e);
       return Status.ERROR;
     }
   }
@@ -107,9 +115,10 @@ public class InfluxDB1_8Client extends site.ycsb.DB {
   @Override
   public Status delete(String table, String key) {
     try {
-      influxDB.query(new Query("DELETE FROM " + table + " WHERE " + TAG_NAME + "=" + key));
+      influxDB.query(new Query("DROP SERIES FROM " + table + " WHERE " + TAG_NAME + "='" + key + "'"));
       return Status.OK;
     } catch (Exception e) {
+      log.error(e.getMessage(), e);
       return Status.ERROR;
     }
   }
