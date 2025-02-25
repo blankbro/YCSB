@@ -3,7 +3,6 @@ package site.ycsb.db.influxdb1_8;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.influxdb.InfluxDB;
-import org.influxdb.InfluxDBFactory;
 import org.influxdb.dto.Point;
 import org.influxdb.dto.Query;
 import org.influxdb.dto.QueryResult;
@@ -11,6 +10,7 @@ import site.ycsb.*;
 
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Influxdb 1.8 client.
@@ -21,30 +21,46 @@ public class InfluxDB18Client extends site.ycsb.DB {
 
   private static Logger log = LogManager.getLogger(InfluxDB18Client.class);
 
+  private static final AtomicInteger THREAD_COUNT = new AtomicInteger(0);
+
   private static final String TAG_NAME = "rowkey";
+
+  private InfluxdbHelper influxdbHelper;
+
   private InfluxDB influxDB;
-  private String bucket;
+
+  private String database;
+
   private int batchSize;
+
   private int batchInterval;
 
   @Override
   public void init() throws DBException {
     final Properties props = getProperties();
-    final String url = props.getProperty("influxdb.url", "http://localhost:8086");
-    bucket = props.getProperty("influxdb.bucket", "benchmark-ycsb");
-    final String user = props.getProperty("influxdb.user", "user");
-    final String password = props.getProperty("influxdb.password", "password");
-    batchSize = Integer.parseInt(props.getProperty("influxdb.batchsize", "1"));
-    batchInterval = Integer.parseInt(props.getProperty("influxdb.batchinterval", "1"));
+    final String url = props.getProperty("url", "http://localhost:8086");
+    database = props.getProperty("database", "benchmark-ycsb");
+    final String username = props.getProperty("username", "username");
+    final String password = props.getProperty("password", "password");
+    batchSize = Integer.parseInt(props.getProperty("batch_size", "1"));
+    batchInterval = Integer.parseInt(props.getProperty("batch_interval_ms", "1"));
 
-    influxDB = InfluxDBFactory.connect(url, user, password);
-    if (!influxDB.databaseExists(bucket)) {
-      influxDB.createDatabase(bucket);
+    THREAD_COUNT.getAndIncrement();
+    synchronized (THREAD_COUNT) {
+      if (influxdbHelper == null) {
+        influxdbHelper = InfluxdbHelper.build(url, username, password);
+        if (!influxdbHelper.databaseExists(database)) {
+          influxdbHelper.createDatabase(database);
+        }
+        influxdbHelper.setDefaultDatabase(database);
+        influxdbHelper.alterReplicationFactor(database, "autogen", 3);
+
+        if (batchSize > 1) {
+          influxdbHelper.enableBatch(batchSize, batchInterval, TimeUnit.MILLISECONDS);
+        }
+      }
     }
-    influxDB.setDatabase(bucket);
-    if (batchSize > 1) {
-      influxDB.enableBatch(batchSize, batchInterval, TimeUnit.MILLISECONDS);
-    }
+
   }
 
 
