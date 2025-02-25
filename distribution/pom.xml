@@ -131,6 +131,11 @@ LICENSE file.
     </dependency>
     <dependency>
       <groupId>site.ycsb</groupId>
+      <artifactId>googlebigtable2-binding</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>site.ycsb</groupId>
       <artifactId>griddb-binding</artifactId>
       <version>${project.version}</version>
     </dependency>
@@ -152,6 +157,11 @@ LICENSE file.
     <dependency>
       <groupId>site.ycsb</groupId>
       <artifactId>infinispan-binding</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>site.ycsb</groupId>
+      <artifactId>influxdb1.8-bindling</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>

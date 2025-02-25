@@ -12,9 +12,14 @@ import site.ycsb.*;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
-public class InfluxDB1_8Client extends site.ycsb.DB {
+/**
+ * Influxdb 1.8 client.
+ * <p>
+ * See {@code influxdb1.8/README.md} for details.
+ */
+public class InfluxDB18Client extends site.ycsb.DB {
 
-  private static Logger log = LogManager.getLogger(InfluxDB1_8Client.class);
+  private static Logger log = LogManager.getLogger(InfluxDB18Client.class);
 
   private static final String TAG_NAME = "rowkey";
   private InfluxDB influxDB;
@@ -84,7 +89,8 @@ public class InfluxDB1_8Client extends site.ycsb.DB {
   }
 
   @Override
-  public Status scan(String table, String startkey, int recordcount, Set<String> fields, Vector<HashMap<String, ByteIterator>> result) {
+  public Status scan(String table, String startkey, int recordcount,
+                     Set<String> fields, Vector<HashMap<String, ByteIterator>> result) {
     return null;
   }
 
@@ -98,7 +104,7 @@ public class InfluxDB1_8Client extends site.ycsb.DB {
     try {
       Point.Builder pointBuilder = Point.measurement(table)
           .time(System.currentTimeMillis(), TimeUnit.MILLISECONDS)
-          .tag(TAG_NAME, key);// 将 YCSB 的 key 作为 Tag
+          .tag(TAG_NAME, key);
 
       for (Map.Entry<String, ByteIterator> entry : values.entrySet()) {
         pointBuilder.addField(entry.getKey(), entry.getValue().toString());

@@ -13,9 +13,9 @@ import static org.junit.Assert.assertEquals;
 import static site.ycsb.workloads.CoreWorkload.TABLENAME_PROPERTY;
 import static site.ycsb.workloads.CoreWorkload.TABLENAME_PROPERTY_DEFAULT;
 
-public class InfluxDB1_8ClientTest {
+public class InfluxDB18ClientTest {
 
-  private InfluxDB1_8Client client;
+  private InfluxDB18Client client;
 
   private String tableName;
 
@@ -30,7 +30,7 @@ public class InfluxDB1_8ClientTest {
    * Re-create the table for each test. Using custom properties.
    */
   public void setUp(Properties p) throws Exception {
-    client = new InfluxDB1_8Client();
+    client = new InfluxDB18Client();
 
     p.setProperty("influxdb.user", "admin");
     p.setProperty("influxdb.password", "admin");
