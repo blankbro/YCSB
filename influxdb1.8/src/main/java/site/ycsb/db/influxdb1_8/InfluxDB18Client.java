@@ -150,7 +150,7 @@ public class InfluxDB18Client extends site.ycsb.DB {
   @Override
   public Status update(String table, String key, Map<String, ByteIterator> values) {
     try {
-      log.info("update {}", key);
+      log.debug("update {}", key);
       Status deleteStatus = delete(table, key);
       if (!Status.OK.equals(deleteStatus)) {
         return deleteStatus;
@@ -188,7 +188,7 @@ public class InfluxDB18Client extends site.ycsb.DB {
   @Override
   public Status delete(String table, String key) {
     try {
-      log.info("Deleting {}", key);
+      log.debug("Deleting {}", key);
       Map<String, String> tags = new HashMap<>();
       tags.put(TAG_NAME, key);
 
