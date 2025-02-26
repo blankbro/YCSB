@@ -3,7 +3,6 @@ package site.ycsb.db.influxdb1_8;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.influxdb.InfluxDB;
-import org.influxdb.dto.Point;
 import org.influxdb.dto.Query;
 import org.influxdb.dto.QueryResult;
 import site.ycsb.*;
@@ -31,6 +30,10 @@ public class InfluxDB18Client extends site.ycsb.DB {
 
   private String database;
 
+  private String rpName;
+
+  private Integer replicationFactor;
+
   private int batchSize;
 
   private int batchInterval;
@@ -40,6 +43,8 @@ public class InfluxDB18Client extends site.ycsb.DB {
     final Properties props = getProperties();
     final String url = props.getProperty("url", "http://localhost:8086");
     database = props.getProperty("database", "benchmark-ycsb");
+    rpName = props.getProperty("rp_name", "autogen");
+    replicationFactor = Integer.parseInt(props.getProperty("replication_factor", "3"));
     final String username = props.getProperty("username", "username");
     final String password = props.getProperty("password", "password");
     batchSize = Integer.parseInt(props.getProperty("batch_size", "1"));
@@ -53,7 +58,7 @@ public class InfluxDB18Client extends site.ycsb.DB {
           influxdbHelper.createDatabase(database);
         }
         influxdbHelper.setDefaultDatabase(database);
-        influxdbHelper.alterReplicationFactor(database, "autogen", 3);
+        influxdbHelper.alterReplicationFactor(database, rpName, replicationFactor);
 
         if (batchSize > 1) {
           influxdbHelper.enableBatch(batchSize, batchInterval, TimeUnit.MILLISECONDS);
@@ -118,15 +123,15 @@ public class InfluxDB18Client extends site.ycsb.DB {
   @Override
   public Status insert(String table, String key, Map<String, ByteIterator> values) {
     try {
-      Point.Builder pointBuilder = Point.measurement(table)
-          .time(System.currentTimeMillis(), TimeUnit.MILLISECONDS)
-          .tag(TAG_NAME, key);
+      Map<String, String> tags = new HashMap<>();
+      tags.put(TAG_NAME, key);
 
+      Map<String, Object> fields = new HashMap<>();
       for (Map.Entry<String, ByteIterator> entry : values.entrySet()) {
-        pointBuilder.addField(entry.getKey(), entry.getValue().toString());
+        fields.put(entry.getKey(), entry.getValue().toString());
       }
 
-      influxDB.write(pointBuilder.build());
+      influxdbHelper.insert(database, rpName, table, tags, fields);
       return Status.OK;
     } catch (Exception e) {
       log.error(e.getMessage(), e);
@@ -137,7 +142,11 @@ public class InfluxDB18Client extends site.ycsb.DB {
   @Override
   public Status delete(String table, String key) {
     try {
-      influxDB.query(new Query("DROP SERIES FROM " + table + " WHERE " + TAG_NAME + "='" + key + "'"));
+      log.info("Deleting " + key);
+      Map<String, String> tags = new HashMap<>();
+      tags.put(TAG_NAME, key);
+
+      influxdbHelper.delete(database, rpName, table, tags);
       return Status.OK;
     } catch (Exception e) {
       log.error(e.getMessage(), e);
@@ -147,6 +156,6 @@ public class InfluxDB18Client extends site.ycsb.DB {
 
   @Override
   public void cleanup() throws DBException {
-    influxDB.close();
+    influxdbHelper.close();
   }
 }
