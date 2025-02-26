@@ -2,14 +2,14 @@ package site.ycsb.db.influxdb1_8;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.influxdb.InfluxDB;
-import org.influxdb.dto.Query;
-import org.influxdb.dto.QueryResult;
 import site.ycsb.*;
 
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * Influxdb 1.8 client.
@@ -25,8 +25,6 @@ public class InfluxDB18Client extends site.ycsb.DB {
   private static final String TAG_NAME = "rowkey";
 
   private InfluxdbHelper influxdbHelper;
-
-  private InfluxDB influxDB;
 
   private String database;
 
@@ -65,30 +63,36 @@ public class InfluxDB18Client extends site.ycsb.DB {
         }
       }
     }
-
   }
-
 
   @Override
   public Status read(String table, String key, Set<String> fields, Map<String, ByteIterator> result) {
-    String fieldStr = String.join(", ", fields);
-    Query query = new Query(String.format("select %s from %s", fieldStr, table));
-    QueryResult queryResult = influxDB.query(query);
-    if (queryResult.hasError()) {
+    try {
+      log.debug("Reading {}.{} fields: {},", table, key, fields);
+      Map<String, String> tags = new HashMap<>();
+      tags.put(TAG_NAME, key);
+      List<Map<String, Object>> selectResult = influxdbHelper.select(database, rpName, table, fields, tags);
+      if (selectResult.isEmpty()) {
+        return Status.NOT_FOUND;
+      }
+      if (selectResult.size() != 1) {
+        log.error("InfluxDB query returned {} results", selectResult.size());
+        return Status.ERROR;
+      }
+      Map<String, Object> row = selectResult.get(0);
+      log.debug("select result: {}", row);
+      objectToByteIterator(row, result);
+      return Status.OK;
+    } catch (Exception e) {
+      log.error(e.getMessage(), e);
       return Status.ERROR;
     }
-    if (queryResult.getResults().isEmpty()) {
-      return Status.NOT_FOUND;
-    }
-    QueryResult.Result firstQueryResult = queryResult.getResults().get(0);
-    if (firstQueryResult.getSeries().isEmpty()) {
-      return Status.NOT_FOUND;
-    }
-    QueryResult.Series series = firstQueryResult.getSeries().get(0);
-    for (int i = 0; i < series.getValues().size(); i++) {
-      List<Object> values = series.getValues().get(i);
-      for (int j = 0; j < values.size(); j++) {
-        Object value = values.get(j);
+  }
+
+  public void objectToByteIterator(Map<String, Object> row, Map<String, ByteIterator> result) {
+    row.forEach(new BiConsumer<String, Object>() {
+      @Override
+      public void accept(String fieldName, Object value) {
         ByteIterator valueByteIterator = null;
         if (value instanceof String) {
           valueByteIterator = new StringByteIterator((String) value);
@@ -103,21 +107,63 @@ public class InfluxDB18Client extends site.ycsb.DB {
         } else if (value instanceof Boolean) {
           valueByteIterator = new NumericByteIterator(Boolean.TRUE.equals(value) ? 1 : 0);
         }
-        result.put(series.getColumns().get(j), valueByteIterator);
+        result.put(fieldName, valueByteIterator);
       }
-    }
-    return Status.OK;
+    });
   }
 
   @Override
   public Status scan(String table, String startkey, int recordcount,
                      Set<String> fields, Vector<HashMap<String, ByteIterator>> result) {
-    return null;
+    try {
+      Map<String, String> tags = new HashMap<>();
+      tags.put(TAG_NAME, startkey);
+      List<Map<String, Object>> startResult = influxdbHelper.select(database, rpName, table, fields, tags);
+      if (startResult.isEmpty()) {
+        return Status.NOT_FOUND;
+      }
+      Map<String, Object> startRow = startResult.get(0);
+      Instant time = Instant.parse((String) startRow.get("time"));
+
+      List<Map<String, Object>> scanResult = influxdbHelper.scan(database, rpName, table, fields,
+          time.toEpochMilli(), recordcount);
+      if (scanResult.isEmpty()) {
+        return Status.NOT_FOUND;
+      }
+
+      scanResult.forEach(new Consumer<Map<String, Object>>() {
+        @Override
+        public void accept(Map<String, Object> row) {
+          HashMap<String, ByteIterator> rowByte = new HashMap<>();
+          objectToByteIterator(row, rowByte);
+          result.add(rowByte);
+        }
+      });
+
+      return Status.OK;
+    } catch (Exception e) {
+      log.error(e.getMessage(), e);
+      return Status.ERROR;
+    }
   }
 
   @Override
   public Status update(String table, String key, Map<String, ByteIterator> values) {
-    return insert(table, key, values);
+    try {
+      log.info("update {}", key);
+      Status deleteStatus = delete(table, key);
+      if (!Status.OK.equals(deleteStatus)) {
+        return deleteStatus;
+      }
+      Status insertStatus = insert(table, key, values);
+      if (!Status.OK.equals(insertStatus)) {
+        return insertStatus;
+      }
+      return Status.OK;
+    } catch (Exception e) {
+      log.error(e.getMessage(), e);
+      return Status.ERROR;
+    }
   }
 
   @Override
@@ -142,7 +188,7 @@ public class InfluxDB18Client extends site.ycsb.DB {
   @Override
   public Status delete(String table, String key) {
     try {
-      log.info("Deleting " + key);
+      log.info("Deleting {}", key);
       Map<String, String> tags = new HashMap<>();
       tags.put(TAG_NAME, key);
 

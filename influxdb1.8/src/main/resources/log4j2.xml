@@ -20,7 +20,7 @@
 <Configuration status="INFO">
     <Appenders>
         <Console name="CONSOLE" target="SYSTEM_OUT">
-            <PatternLayout pattern="[%d{HH:mm:ss}][%-5p][%t] %m%n"/>
+            <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss,SSS} %-5p [%t] %m%n"/>
         </Console>
 
         <RollingFile name="ROLLING_FILE" fileName="influxdb1_8-binding.log"

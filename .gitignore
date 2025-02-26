@@ -25,3 +25,4 @@ output*
 /differentbin/
 
 *.log
+*.log.gz
