@@ -7,7 +7,6 @@ import site.ycsb.*;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -20,11 +19,9 @@ public class InfluxDB18Client extends site.ycsb.DB {
 
   private static Logger log = LogManager.getLogger(InfluxDB18Client.class);
 
-  private static final AtomicInteger THREAD_COUNT = new AtomicInteger(0);
-
   private static final String TAG_NAME = "rowkey";
 
-  private static InfluxdbHelper influxdbHelper = null;
+  private InfluxdbHelper influxdbHelper = null;
 
   private String database;
 
@@ -48,21 +45,18 @@ public class InfluxDB18Client extends site.ycsb.DB {
     batchSize = Integer.parseInt(props.getProperty("batch_size", "5000"));
     batchInterval = Integer.parseInt(props.getProperty("batch_interval_ms", "5000"));
 
-    THREAD_COUNT.getAndIncrement();
-    synchronized (THREAD_COUNT) {
-      if (influxdbHelper == null) {
-        influxdbHelper = InfluxdbHelper.build(url, username, password);
-        if (!influxdbHelper.databaseExists(database)) {
-          influxdbHelper.createDatabase(database);
-        }
-        influxdbHelper.setDefaultDatabase(database);
-        if (replicationFactor > 1) {
-          influxdbHelper.alterReplicationFactor(database, rpName, replicationFactor);
-        }
+    if (influxdbHelper == null) {
+      influxdbHelper = InfluxdbHelper.build(url, username, password);
+      if (!influxdbHelper.databaseExists(database)) {
+        influxdbHelper.createDatabase(database);
+      }
+      influxdbHelper.setDefaultDatabase(database);
+      if (replicationFactor > 1) {
+        influxdbHelper.alterReplicationFactor(database, rpName, replicationFactor);
+      }
 
-        if (batchSize > 1) {
-          influxdbHelper.enableBatch(batchSize, batchInterval, TimeUnit.MILLISECONDS);
-        }
+      if (batchSize > 1) {
+        influxdbHelper.enableBatch(batchSize, batchInterval, TimeUnit.MILLISECONDS);
       }
     }
   }
@@ -204,6 +198,9 @@ public class InfluxDB18Client extends site.ycsb.DB {
 
   @Override
   public void cleanup() throws DBException {
-    influxdbHelper.close();
+    if (influxdbHelper != null) {
+      influxdbHelper.close();
+      influxdbHelper = null;
+    }
   }
 }

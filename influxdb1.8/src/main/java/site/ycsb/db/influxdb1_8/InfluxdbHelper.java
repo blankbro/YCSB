@@ -1,5 +1,6 @@
 package site.ycsb.db.influxdb1_8;
 
+import okhttp3.ConnectionPool;
 import okhttp3.OkHttpClient;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.logging.log4j.LogManager;
@@ -50,7 +51,7 @@ public class InfluxdbHelper {
     client.sslSocketFactory(defaultSslSocketFactory(), defaultTrustManager());
     client.hostnameVerifier(noopHostnameVerifier());
     // 超过阈值的idle连接会由连接池关闭，关闭后sockets进入TIME_WAIT状态等待x系统回收，该参数需根据实际连接数适当调整
-    // client.connectionPool(new ConnectionPool(5, 30, TimeUnit.SECONDS));
+    client.connectionPool(new ConnectionPool(5, 30, TimeUnit.SECONDS));
 
     this.influxDB = InfluxDBFactory.connect(url, username, password, client);
   }
