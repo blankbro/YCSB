@@ -42,11 +42,11 @@ public class InfluxDB18Client extends site.ycsb.DB {
     final String url = props.getProperty("url", "http://localhost:8086");
     database = props.getProperty("database", "benchmark-ycsb");
     rpName = props.getProperty("rp_name", "autogen");
-    replicationFactor = Integer.parseInt(props.getProperty("replication_factor", "3"));
+    replicationFactor = Integer.parseInt(props.getProperty("replication_factor", "1"));
     final String username = props.getProperty("username", "username");
     final String password = props.getProperty("password", "password");
-    batchSize = Integer.parseInt(props.getProperty("batch_size", "1"));
-    batchInterval = Integer.parseInt(props.getProperty("batch_interval_ms", "1"));
+    batchSize = Integer.parseInt(props.getProperty("batch_size", "5000"));
+    batchInterval = Integer.parseInt(props.getProperty("batch_interval_ms", "5000"));
 
     THREAD_COUNT.getAndIncrement();
     synchronized (THREAD_COUNT) {
@@ -56,7 +56,9 @@ public class InfluxDB18Client extends site.ycsb.DB {
           influxdbHelper.createDatabase(database);
         }
         influxdbHelper.setDefaultDatabase(database);
-        influxdbHelper.alterReplicationFactor(database, rpName, replicationFactor);
+        if (replicationFactor > 1) {
+          influxdbHelper.alterReplicationFactor(database, rpName, replicationFactor);
+        }
 
         if (batchSize > 1) {
           influxdbHelper.enableBatch(batchSize, batchInterval, TimeUnit.MILLISECONDS);

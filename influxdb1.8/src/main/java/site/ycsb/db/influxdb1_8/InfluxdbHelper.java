@@ -1,5 +1,8 @@
 package site.ycsb.db.influxdb1_8;
 
+import okhttp3.ConnectionPool;
+import okhttp3.OkHttpClient;
+import org.apache.http.ssl.SSLContexts;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.influxdb.InfluxDB;
@@ -8,6 +11,9 @@ import org.influxdb.dto.Point;
 import org.influxdb.dto.Query;
 import org.influxdb.dto.QueryResult;
 
+import javax.net.ssl.*;
+import java.security.SecureRandom;
+import java.security.cert.X509Certificate;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -35,7 +41,56 @@ public class InfluxdbHelper {
     this.url = url;
     this.username = username;
     this.password = password;
-    this.influxDB = InfluxDBFactory.connect(url, username, password);
+
+    OkHttpClient.Builder client = new OkHttpClient.Builder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .writeTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true);
+
+    client.sslSocketFactory(defaultSslSocketFactory(), defaultTrustManager());
+    client.hostnameVerifier(noopHostnameVerifier());
+    // 超过阈值的idle连接会由连接池关闭，关闭后sockets进入TIME_WAIT状态等待系统回收，该参数需根据实际连接数适当调整
+    client.connectionPool(new ConnectionPool(5, 30, TimeUnit.SECONDS));
+
+    this.influxDB = InfluxDBFactory.connect(url, username, password, client);
+  }
+
+  private static SSLSocketFactory defaultSslSocketFactory() {
+    try {
+      SSLContext sslContext = SSLContexts.createDefault();
+
+      sslContext.init(null, new TrustManager[]{
+          defaultTrustManager()
+      }, new SecureRandom());
+      return sslContext.getSocketFactory();
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private static X509TrustManager defaultTrustManager() {
+    return new X509TrustManager() {
+      public X509Certificate[] getAcceptedIssuers() {
+        return new X509Certificate[0];
+      }
+
+      public void checkClientTrusted(X509Certificate[] certs, String authType) {
+      }
+
+      public void checkServerTrusted(X509Certificate[] certs, String authType) {
+      }
+    };
+  }
+
+  private static HostnameVerifier noopHostnameVerifier() {
+    return new HostnameVerifier() {
+      @Override
+      public boolean verify(final String s, final SSLSession sslSession) {
+        // true 表示使用ssl方式，但是不校验ssl证书，建议使用这种方式
+        return true;
+      }
+    };
   }
 
   public void close() {
