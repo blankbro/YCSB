@@ -24,7 +24,7 @@ public class InfluxDB18Client extends site.ycsb.DB {
 
   private static final String TAG_NAME = "rowkey";
 
-  private InfluxdbHelper influxdbHelper;
+  private static InfluxdbHelper influxdbHelper = null;
 
   private String database;
 
