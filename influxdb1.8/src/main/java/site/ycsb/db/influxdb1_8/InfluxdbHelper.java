@@ -14,10 +14,6 @@ import org.influxdb.dto.QueryResult;
 import javax.net.ssl.*;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.ZoneId;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -155,11 +151,12 @@ public class InfluxdbHelper {
                                           Set<String> fields, Map<String, String> where) {
     String fieldStr = fields == null || fields.isEmpty() ? "*" : String.join(", ", fields);
 
-    LocalDateTime midnight = LocalDate.now().atTime(LocalTime.MIDNIGHT);
-    long midnightTimestamp = midnight.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+
+    long endTimestamp = System.currentTimeMillis();
+    long startTimestamp = endTimestamp - TimeUnit.HOURS.toMillis(24);
 
     String sql = String.format("select %s from \"%s\".\"%s\".\"%s\" where time >= %sms and time <= %sms",
-        fieldStr, database, rpName, measurement, midnightTimestamp, System.currentTimeMillis());
+        fieldStr, database, rpName, measurement, startTimestamp, endTimestamp);
     String whereSql = where.entrySet().stream()
         .map(entry -> String.format("%s = '%s'", entry.getKey(), entry.getValue()))
         .collect(Collectors.joining(" and "));
@@ -175,10 +172,9 @@ public class InfluxdbHelper {
 
   public List<Map<String, Object>> scan(String database, String rpName, String measurement,
                                         Set<String> fields, long startTimeMs, int recordcount) {
-
     String fieldStr = fields == null || fields.isEmpty() ? "*" : String.join(", ", fields);
-    String sql = String.format("select %s from \"%s\".\"%s\".\"%s\" where time >= %sms limit %d",
-        fieldStr, database, rpName, measurement, startTimeMs, recordcount);
+    String sql = String.format("select %s from \"%s\".\"%s\".\"%s\" where time >= %sms and time <= %sms limit %d",
+        fieldStr, database, rpName, measurement, startTimeMs, System.currentTimeMillis(), recordcount);
 
     log.debug("scan SQL: {}", sql);
     Query query = new Query(sql);
