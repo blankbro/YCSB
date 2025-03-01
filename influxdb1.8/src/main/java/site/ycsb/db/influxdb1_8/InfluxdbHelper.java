@@ -197,6 +197,9 @@ public class InfluxdbHelper {
       if (qrr.hasError()) {
         throw new RuntimeException(qrr.getError());
       }
+      if (qrr.getSeries() == null) {
+        continue;
+      }
       for (int j = 0; j < qrr.getSeries().size(); j++) {
         QueryResult.Series series = qrr.getSeries().get(j);
         for (int k = 0; k < series.getValues().size(); k++) {
