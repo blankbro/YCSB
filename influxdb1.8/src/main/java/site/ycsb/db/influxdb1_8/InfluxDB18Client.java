@@ -69,7 +69,7 @@ public class InfluxDB18Client extends site.ycsb.DB {
   public Status read(String table, String key, Set<String> fields, Map<String, ByteIterator> result) {
     try {
       if (debug) {
-        log.debug("Reading {}.{} fields: {},", table, key, fields);
+        log.info("Reading {}.{} fields: {},", table, key, fields);
       }
       Map<String, String> tags = new HashMap<>();
       tags.put(TAG_NAME, key);
@@ -83,7 +83,7 @@ public class InfluxDB18Client extends site.ycsb.DB {
       }
       Map<String, Object> row = selectResult.get(0);
       if (debug) {
-        log.debug("select result: {}", row);
+        log.info("select result: {}", row);
       }
       objectToByteIterator(row, result);
       return Status.OK;
@@ -155,7 +155,7 @@ public class InfluxDB18Client extends site.ycsb.DB {
   public Status update(String table, String key, Map<String, ByteIterator> values) {
     try {
       if (debug) {
-        log.debug("update {}", key);
+        log.info("update {}", key);
       }
       Status deleteStatus = delete(table, key);
       if (!Status.OK.equals(deleteStatus)) {
@@ -195,7 +195,7 @@ public class InfluxDB18Client extends site.ycsb.DB {
   public Status delete(String table, String key) {
     try {
       if (debug) {
-        log.debug("Deleting {}", key);
+        log.info("Deleting {}", key);
       }
       Map<String, String> tags = new HashMap<>();
       tags.put(TAG_NAME, key);

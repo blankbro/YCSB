@@ -171,7 +171,7 @@ public class InfluxdbHelper {
     }
 
     if (debug) {
-      log.debug("select SQL: {}", sql);
+      log.info("select SQL: {}", sql);
     }
     Query query = new Query(sql);
     QueryResult queryResult = influxDB.query(query);
@@ -185,13 +185,13 @@ public class InfluxdbHelper {
         fieldStr, database, rpName, measurement, startTimeMs, System.currentTimeMillis(), recordcount);
 
     if (debug) {
-      log.debug("scan SQL: {}", sql);
+      log.info("scan SQL: {}", sql);
     }
     Query query = new Query(sql);
     QueryResult queryResult = influxDB.query(query);
     List<Map<String, Object>> result = queryResultToList(queryResult);
     if (debug) {
-      log.debug("scan result size: {}", result.size());
+      log.info("scan result size: {}", result.size());
     }
     return result;
   }
