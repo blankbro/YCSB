@@ -14,6 +14,10 @@ import org.influxdb.dto.QueryResult;
 import javax.net.ssl.*;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -150,12 +154,17 @@ public class InfluxdbHelper {
   public List<Map<String, Object>> select(String database, String rpName, String measurement,
                                           Set<String> fields, Map<String, String> where) {
     String fieldStr = fields == null || fields.isEmpty() ? "*" : String.join(", ", fields);
-    String sql = String.format("select %s from \"%s\".\"%s\".\"%s\"", fieldStr, database, rpName, measurement);
+
+    LocalDateTime midnight = LocalDate.now().atTime(LocalTime.MIDNIGHT);
+    long midnightTimestamp = midnight.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+
+    String sql = String.format("select %s from \"%s\".\"%s\".\"%s\" where time >= %sms and time <= %sms",
+        fieldStr, database, rpName, measurement, midnightTimestamp, System.currentTimeMillis());
     String whereSql = where.entrySet().stream()
         .map(entry -> String.format("%s = '%s'", entry.getKey(), entry.getValue()))
         .collect(Collectors.joining(" and "));
     if (!whereSql.isEmpty()) {
-      sql += " where " + whereSql;
+      sql += " and " + whereSql;
     }
 
     log.debug("select SQL: {}", sql);
