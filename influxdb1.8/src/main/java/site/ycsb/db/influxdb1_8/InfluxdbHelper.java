@@ -33,6 +33,12 @@ public class InfluxdbHelper {
 
   private InfluxDB influxDB;
 
+  private boolean debug;
+
+  public void setDebug(boolean debug) {
+    this.debug = debug;
+  }
+
   public static InfluxdbHelper build(String url, String username, String password) {
     return new InfluxdbHelper(url, username, password);
   }
@@ -164,7 +170,9 @@ public class InfluxdbHelper {
       sql += " and " + whereSql;
     }
 
-    log.debug("select SQL: {}", sql);
+    if (debug) {
+      log.debug("select SQL: {}", sql);
+    }
     Query query = new Query(sql);
     QueryResult queryResult = influxDB.query(query);
     return queryResultToList(queryResult);
@@ -176,11 +184,15 @@ public class InfluxdbHelper {
     String sql = String.format("select %s from \"%s\".\"%s\".\"%s\" where time >= %sms and time <= %sms limit %d",
         fieldStr, database, rpName, measurement, startTimeMs, System.currentTimeMillis(), recordcount);
 
-    log.debug("scan SQL: {}", sql);
+    if (debug) {
+      log.debug("scan SQL: {}", sql);
+    }
     Query query = new Query(sql);
     QueryResult queryResult = influxDB.query(query);
     List<Map<String, Object>> result = queryResultToList(queryResult);
-    log.debug("scan result size: {}", result.size());
+    if (debug) {
+      log.debug("scan result size: {}", result.size());
+    }
     return result;
   }
 

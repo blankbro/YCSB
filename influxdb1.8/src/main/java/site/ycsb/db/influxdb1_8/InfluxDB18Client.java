@@ -33,6 +33,8 @@ public class InfluxDB18Client extends site.ycsb.DB {
 
   private int batchInterval;
 
+  private boolean debug;
+
   @Override
   public void init() throws DBException {
     final Properties props = getProperties();
@@ -44,9 +46,11 @@ public class InfluxDB18Client extends site.ycsb.DB {
     final String password = props.getProperty("password", "password");
     batchSize = Integer.parseInt(props.getProperty("batch_size", "5000"));
     batchInterval = Integer.parseInt(props.getProperty("batch_interval_ms", "5000"));
+    debug = getProperties().getProperty("debug", "false").compareTo("true") == 0;
 
     if (influxdbHelper == null) {
       influxdbHelper = InfluxdbHelper.build(url, username, password);
+      influxdbHelper.setDebug(debug);
       if (!influxdbHelper.databaseExists(database)) {
         influxdbHelper.createDatabase(database);
       }
@@ -64,7 +68,9 @@ public class InfluxDB18Client extends site.ycsb.DB {
   @Override
   public Status read(String table, String key, Set<String> fields, Map<String, ByteIterator> result) {
     try {
-      log.debug("Reading {}.{} fields: {},", table, key, fields);
+      if (debug) {
+        log.debug("Reading {}.{} fields: {},", table, key, fields);
+      }
       Map<String, String> tags = new HashMap<>();
       tags.put(TAG_NAME, key);
       List<Map<String, Object>> selectResult = influxdbHelper.select(database, rpName, table, fields, tags);
@@ -76,7 +82,9 @@ public class InfluxDB18Client extends site.ycsb.DB {
         return Status.ERROR;
       }
       Map<String, Object> row = selectResult.get(0);
-      log.debug("select result: {}", row);
+      if (debug) {
+        log.debug("select result: {}", row);
+      }
       objectToByteIterator(row, result);
       return Status.OK;
     } catch (Exception e) {
@@ -146,7 +154,9 @@ public class InfluxDB18Client extends site.ycsb.DB {
   @Override
   public Status update(String table, String key, Map<String, ByteIterator> values) {
     try {
-      log.debug("update {}", key);
+      if (debug) {
+        log.debug("update {}", key);
+      }
       Status deleteStatus = delete(table, key);
       if (!Status.OK.equals(deleteStatus)) {
         return deleteStatus;
@@ -184,7 +194,9 @@ public class InfluxDB18Client extends site.ycsb.DB {
   @Override
   public Status delete(String table, String key) {
     try {
-      log.debug("Deleting {}", key);
+      if (debug) {
+        log.debug("Deleting {}", key);
+      }
       Map<String, String> tags = new HashMap<>();
       tags.put(TAG_NAME, key);
 
