@@ -131,10 +131,10 @@ public class InfluxDB18Client extends site.ycsb.DB {
         return Status.NOT_FOUND;
       }
       Map<String, Object> startRow = startResult.get(0);
-      Instant time = Instant.parse((String) startRow.get("time"));
+      String startTime = (String) startRow.get("time");
 
       List<Map<String, Object>> scanResult = influxdbHelper.scan(database, rpName, table, fields,
-          time.toEpochMilli() * 1_000_000L + time.getNano(), recordcount);
+          startTime, recordcount);
       if (scanResult.isEmpty()) {
         return Status.NOT_FOUND;
       }

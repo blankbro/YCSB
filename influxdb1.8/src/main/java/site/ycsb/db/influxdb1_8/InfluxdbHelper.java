@@ -179,10 +179,10 @@ public class InfluxdbHelper {
   }
 
   public List<Map<String, Object>> scan(String database, String rpName, String measurement,
-                                        Set<String> fields, long startTimeNs, int recordcount) {
+                                        Set<String> fields, String startTime, int recordcount) {
     String fieldStr = fields == null || fields.isEmpty() ? "*" : String.join(", ", fields);
-    String sql = String.format("select %s from \"%s\".\"%s\".\"%s\" where time >= %s limit %d",
-        fieldStr, database, rpName, measurement, startTimeNs, recordcount);
+    String sql = String.format("select %s from \"%s\".\"%s\".\"%s\" where time >= '%s' limit %d",
+        fieldStr, database, rpName, measurement, startTime, recordcount);
 
     if (debug) {
       log.info("scan SQL: {}", sql);
