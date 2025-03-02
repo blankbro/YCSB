@@ -19,7 +19,9 @@ public class InfluxDB18Client extends site.ycsb.DB {
 
   private static Logger log = LogManager.getLogger(InfluxDB18Client.class);
 
-  private static final String TAG_NAME = "rowkey";
+  private static final String TAG_NAME = "tag0";
+
+  private static final String KEY_NAME = "key";
 
   private InfluxdbHelper influxdbHelper = null;
 
@@ -71,9 +73,10 @@ public class InfluxDB18Client extends site.ycsb.DB {
       if (debug) {
         log.info("Reading {}.{} fields: {},", table, key, fields);
       }
-      Map<String, String> tags = new HashMap<>();
-      tags.put(TAG_NAME, key);
-      List<Map<String, Object>> selectResult = influxdbHelper.select(database, rpName, table, fields, tags);
+      Map<String, String> where = new HashMap<>();
+      where.put(TAG_NAME, TAG_NAME);
+      where.put(KEY_NAME, key);
+      List<Map<String, Object>> selectResult = influxdbHelper.select(database, rpName, table, fields, where);
       if (selectResult.isEmpty()) {
         return Status.NOT_FOUND;
       }
@@ -120,9 +123,10 @@ public class InfluxDB18Client extends site.ycsb.DB {
   public Status scan(String table, String startkey, int recordcount,
                      Set<String> fields, Vector<HashMap<String, ByteIterator>> result) {
     try {
-      Map<String, String> tags = new HashMap<>();
-      tags.put(TAG_NAME, startkey);
-      List<Map<String, Object>> startResult = influxdbHelper.select(database, rpName, table, fields, tags);
+      Map<String, String> where = new HashMap<>();
+      where.put(TAG_NAME, TAG_NAME);
+      where.put(KEY_NAME, startkey);
+      List<Map<String, Object>> startResult = influxdbHelper.select(database, rpName, table, fields, where);
       if (startResult.isEmpty()) {
         return Status.NOT_FOUND;
       }
@@ -130,7 +134,7 @@ public class InfluxDB18Client extends site.ycsb.DB {
       Instant time = Instant.parse((String) startRow.get("time"));
 
       List<Map<String, Object>> scanResult = influxdbHelper.scan(database, rpName, table, fields,
-          time.toEpochMilli(), recordcount);
+          time.toEpochMilli() * 1_000_000L + time.getNano(), recordcount);
       if (scanResult.isEmpty()) {
         return Status.NOT_FOUND;
       }
@@ -157,14 +161,30 @@ public class InfluxDB18Client extends site.ycsb.DB {
       if (debug) {
         log.info("update {}", key);
       }
-      Status deleteStatus = delete(table, key);
-      if (!Status.OK.equals(deleteStatus)) {
-        return deleteStatus;
+      // 1. select 这条记录的时间戳
+      Map<String, String> where = new HashMap<>();
+      where.put(TAG_NAME, TAG_NAME);
+      where.put(KEY_NAME, key);
+      List<Map<String, Object>> startResult = influxdbHelper.select(database, rpName, table, null, where);
+      if (startResult.isEmpty()) {
+        return Status.NOT_FOUND;
       }
-      Status insertStatus = insert(table, key, values);
-      if (!Status.OK.equals(insertStatus)) {
-        return insertStatus;
+      Map<String, Object> row = startResult.get(0);
+      Instant time = Instant.parse((String) row.get("time"));
+
+      // 2. 重新 insert 相同时间戳数据
+      Map<String, String> tags = new HashMap<>();
+      tags.put(TAG_NAME, TAG_NAME);
+
+      Map<String, Object> fields = new HashMap<>();
+      fields.put(KEY_NAME, key);
+      for (Map.Entry<String, ByteIterator> entry : values.entrySet()) {
+        fields.put(entry.getKey(), entry.getValue().toString());
       }
+
+      influxdbHelper.insert(database, rpName, table,
+          time.toEpochMilli() * 1_000_000L + time.getNano(), tags, fields);
+
       return Status.OK;
     } catch (Exception e) {
       log.error(e.getMessage(), e);
@@ -176,14 +196,15 @@ public class InfluxDB18Client extends site.ycsb.DB {
   public Status insert(String table, String key, Map<String, ByteIterator> values) {
     try {
       Map<String, String> tags = new HashMap<>();
-      tags.put(TAG_NAME, key);
+      tags.put(TAG_NAME, TAG_NAME);
 
       Map<String, Object> fields = new HashMap<>();
+      fields.put(KEY_NAME, key);
       for (Map.Entry<String, ByteIterator> entry : values.entrySet()) {
         fields.put(entry.getKey(), entry.getValue().toString());
       }
 
-      influxdbHelper.insert(database, rpName, table, tags, fields);
+      influxdbHelper.insert(database, rpName, table, null, tags, fields);
       return Status.OK;
     } catch (Exception e) {
       log.error(e.getMessage(), e);
@@ -197,10 +218,11 @@ public class InfluxDB18Client extends site.ycsb.DB {
       if (debug) {
         log.info("Deleting {}", key);
       }
-      Map<String, String> tags = new HashMap<>();
-      tags.put(TAG_NAME, key);
+      Map<String, String> where = new HashMap<>();
+      where.put(TAG_NAME, TAG_NAME);
+      where.put(KEY_NAME, key);
 
-      influxdbHelper.delete(database, rpName, table, tags);
+      influxdbHelper.delete(database, rpName, table, where);
       return Status.OK;
     } catch (Exception e) {
       log.error(e.getMessage(), e);

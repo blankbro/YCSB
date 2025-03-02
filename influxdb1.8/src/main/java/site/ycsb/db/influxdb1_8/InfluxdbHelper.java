@@ -14,6 +14,7 @@ import org.influxdb.dto.QueryResult;
 import javax.net.ssl.*;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -131,10 +132,13 @@ public class InfluxdbHelper {
     }
   }
 
-  public void insert(String database, String rpName, String measurement,
+  public void insert(String database, String rpName, String measurement, Long timestamp,
                      Map<String, String> tags, Map<String, Object> fields) {
-    Point.Builder pointBuilder = Point.measurement(measurement)
-        .time(System.currentTimeMillis(), TimeUnit.MILLISECONDS);
+    Point.Builder pointBuilder = Point.measurement(measurement);
+
+    if (timestamp == null) {
+      pointBuilder.time(nanoTimestamp(), TimeUnit.NANOSECONDS);
+    }
 
     pointBuilder.tag(tags);
     pointBuilder.fields(fields);
@@ -142,13 +146,13 @@ public class InfluxdbHelper {
     influxDB.write(database, rpName, pointBuilder.build());
   }
 
-  public void delete(String database, String rpName, String measurement, Map<String, String> tags) {
+  public void delete(String database, String rpName, String measurement, Map<String, String> where) {
     String sql = String.format("delete from \"%s\".\"%s\".\"%s\"", database, rpName, measurement);
-    String where = tags.entrySet().stream()
+    String whereSql = where.entrySet().stream()
         .map(entry -> String.format("%s = '%s'", entry.getKey(), entry.getValue()))
         .collect(Collectors.joining(" and "));
-    if (!where.isEmpty()) {
-      sql += " where " + where;
+    if (!whereSql.isEmpty()) {
+      sql += " where " + whereSql;
     }
     influxDB.query(new Query(sql));
   }
@@ -157,12 +161,8 @@ public class InfluxdbHelper {
                                           Set<String> fields, Map<String, String> where) {
     String fieldStr = fields == null || fields.isEmpty() ? "*" : String.join(", ", fields);
 
-
-    long endTimestamp = System.currentTimeMillis();
-    long startTimestamp = endTimestamp - TimeUnit.HOURS.toMillis(24);
-
-    String sql = String.format("select %s from \"%s\".\"%s\".\"%s\" where time >= %sms and time <= %sms",
-        fieldStr, database, rpName, measurement, startTimestamp, endTimestamp);
+    String sql = String.format("select %s from \"%s\".\"%s\".\"%s\" where time <= %sms",
+        fieldStr, database, rpName, measurement, System.currentTimeMillis());
     String whereSql = where.entrySet().stream()
         .map(entry -> String.format("%s = '%s'", entry.getKey(), entry.getValue()))
         .collect(Collectors.joining(" and "));
@@ -179,10 +179,10 @@ public class InfluxdbHelper {
   }
 
   public List<Map<String, Object>> scan(String database, String rpName, String measurement,
-                                        Set<String> fields, long startTimeMs, int recordcount) {
+                                        Set<String> fields, long startTimeNs, int recordcount) {
     String fieldStr = fields == null || fields.isEmpty() ? "*" : String.join(", ", fields);
-    String sql = String.format("select %s from \"%s\".\"%s\".\"%s\" where time >= %sms and time <= %sms limit %d",
-        fieldStr, database, rpName, measurement, startTimeMs, System.currentTimeMillis(), recordcount);
+    String sql = String.format("select %s from \"%s\".\"%s\".\"%s\" where time >= %s limit %d",
+        fieldStr, database, rpName, measurement, startTimeNs, recordcount);
 
     if (debug) {
       log.info("scan SQL: {}", sql);
@@ -232,4 +232,10 @@ public class InfluxdbHelper {
     }
     return selectResult;
   }
+
+  private long nanoTimestamp() {
+    // 获取当前时间的纳秒级时间戳
+    return Instant.now().toEpochMilli() * 1_000_000L + Instant.now().getNano();
+  }
+
 }
