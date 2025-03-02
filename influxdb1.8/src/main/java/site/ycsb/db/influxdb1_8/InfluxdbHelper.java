@@ -140,6 +140,10 @@ public class InfluxdbHelper {
       pointBuilder.time(nanoTimestamp(), TimeUnit.NANOSECONDS);
     }
 
+    if (debug) {
+      log.info(String.format("Inserting %s, tags: %s, fields: %s", measurement, tags, fields));
+    }
+
     pointBuilder.tag(tags);
     pointBuilder.fields(fields);
 
