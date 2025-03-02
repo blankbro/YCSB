@@ -149,7 +149,7 @@ public class InfluxdbHelper {
   public void delete(String database, String rpName, String measurement, Map<String, String> where) {
     String sql = String.format("delete from \"%s\".\"%s\".\"%s\"", database, rpName, measurement);
     String whereSql = where.entrySet().stream()
-        .map(entry -> String.format("%s = '%s'", entry.getKey(), entry.getValue()))
+        .map(entry -> String.format("\"%s\" = '%s'", entry.getKey(), entry.getValue()))
         .collect(Collectors.joining(" and "));
     if (!whereSql.isEmpty()) {
       sql += " where " + whereSql;
@@ -161,10 +161,10 @@ public class InfluxdbHelper {
                                           Set<String> fields, Map<String, String> where) {
     String fieldStr = fields == null || fields.isEmpty() ? "*" : String.join(", ", fields);
 
-    String sql = String.format("select %s from \"%s\".\"%s\".\"%s\" where time <= %sms",
-        fieldStr, database, rpName, measurement, System.currentTimeMillis());
+    String sql = String.format("select %s from \"%s\".\"%s\".\"%s\" where time <= now()",
+        fieldStr, database, rpName, measurement);
     String whereSql = where.entrySet().stream()
-        .map(entry -> String.format("%s = '%s'", entry.getKey(), entry.getValue()))
+        .map(entry -> String.format("\"%s\" = '%s'", entry.getKey(), entry.getValue()))
         .collect(Collectors.joining(" and "));
     if (!whereSql.isEmpty()) {
       sql += " and " + whereSql;
