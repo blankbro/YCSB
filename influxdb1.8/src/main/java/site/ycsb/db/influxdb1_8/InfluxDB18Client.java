@@ -175,9 +175,9 @@ public class InfluxDB18Client extends site.ycsb.DB {
       // 2. 重新 insert 相同时间戳数据
       Map<String, String> tags = new HashMap<>();
       tags.put(TAG_NAME, TAG_NAME);
+      tags.put(KEY_NAME, key);
 
       Map<String, Object> fields = new HashMap<>();
-      fields.put(KEY_NAME, key);
       for (Map.Entry<String, ByteIterator> entry : values.entrySet()) {
         fields.put(entry.getKey(), entry.getValue().toString());
       }
@@ -197,9 +197,9 @@ public class InfluxDB18Client extends site.ycsb.DB {
     try {
       Map<String, String> tags = new HashMap<>();
       tags.put(TAG_NAME, TAG_NAME);
+      tags.put(KEY_NAME, key);
 
       Map<String, Object> fields = new HashMap<>();
-      fields.put(KEY_NAME, key);
       for (Map.Entry<String, ByteIterator> entry : values.entrySet()) {
         fields.put(entry.getKey(), entry.getValue().toString());
       }
