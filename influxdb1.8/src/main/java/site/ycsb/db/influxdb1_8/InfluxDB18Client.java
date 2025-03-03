@@ -123,17 +123,21 @@ public class InfluxDB18Client extends site.ycsb.DB {
   public Status scan(String table, String startkey, int recordcount,
                      Set<String> fields, Vector<HashMap<String, ByteIterator>> result) {
     try {
-      Map<String, String> where = new HashMap<>();
-      where.put(TAG_NAME, TAG_NAME);
-      where.put(KEY_NAME, startkey);
-      List<Map<String, Object>> startResult = influxdbHelper.select(database, rpName, table, fields, where);
+      Map<String, String> selectStartKeyWhere = new HashMap<>();
+      selectStartKeyWhere.put(TAG_NAME, TAG_NAME);
+      selectStartKeyWhere.put(KEY_NAME, startkey);
+      List<Map<String, Object>> startResult = influxdbHelper.select(database, rpName, table, fields,
+          selectStartKeyWhere);
       if (startResult.isEmpty()) {
         return Status.NOT_FOUND;
       }
       Map<String, Object> startRow = startResult.get(0);
       String startTime = (String) startRow.get("time");
 
-      List<Map<String, Object>> scanResult = influxdbHelper.scan(database, rpName, table, fields,
+      Map<String, String> scanWhere = new HashMap<>();
+      scanWhere.put(TAG_NAME, TAG_NAME);
+
+      List<Map<String, Object>> scanResult = influxdbHelper.scan(database, rpName, table, fields, scanWhere,
           startTime, recordcount);
       if (scanResult.isEmpty()) {
         return Status.NOT_FOUND;
