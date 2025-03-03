@@ -8,8 +8,8 @@
     <relativePath>../binding-parent/</relativePath>
   </parent>
 
-  <artifactId>influxdb1.8-binding</artifactId>
-  <name>Influxdb 1.8 DB Binding</name>
+  <artifactId>influxdb1.8_ts-binding</artifactId>
+  <name>Influxdb 1.8 DB Binding For Time Series</name>
 
   <dependencies>
     <dependency>

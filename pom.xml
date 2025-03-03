@@ -185,6 +185,7 @@ LICENSE file.
     <module>ignite</module>
     <module>infinispan</module>
     <module>influxdb1.8</module>
+    <module>influxdb1.8_ts</module>
     <module>jdbc</module>
     <module>kudu</module>
     <module>maprdb</module>

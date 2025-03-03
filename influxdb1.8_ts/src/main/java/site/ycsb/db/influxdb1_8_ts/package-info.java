@@ -19,5 +19,5 @@
  * The YCSB binding for InfluxDB 1.8.
  * Naive implementation.
  */
-package site.ycsb.db.influxdb1_8;
+package site.ycsb.db.influxdb1_8_ts;
 

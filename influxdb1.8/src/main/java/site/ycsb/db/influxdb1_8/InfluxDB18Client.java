@@ -41,7 +41,7 @@ public class InfluxDB18Client extends site.ycsb.DB {
   public void init() throws DBException {
     final Properties props = getProperties();
     final String url = props.getProperty("url", "http://localhost:8086");
-    database = props.getProperty("database", "benchmark-ycsb");
+    database = props.getProperty("database", "ycsb");
     rpName = props.getProperty("rp_name", "autogen");
     replicationFactor = Integer.parseInt(props.getProperty("replication_factor", "1"));
     final String username = props.getProperty("username", "username");

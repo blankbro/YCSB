@@ -161,7 +161,12 @@ LICENSE file.
     </dependency>
     <dependency>
       <groupId>site.ycsb</groupId>
-      <artifactId>influxdb1.8-bindling</artifactId>
+      <artifactId>influxdb1.8-binding</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>site.ycsb</groupId>
+      <artifactId>influxdb1.8_ts-binding</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
