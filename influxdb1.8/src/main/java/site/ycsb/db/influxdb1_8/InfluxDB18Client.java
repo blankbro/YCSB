@@ -1,9 +1,11 @@
 package site.ycsb.db.influxdb1_8;
 
+import jdk.internal.org.jline.utils.Log;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import site.ycsb.*;
 
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -37,6 +39,8 @@ public class InfluxDB18Client extends site.ycsb.DB {
 
   private long startTimestampMs;
 
+  private long endTimestampMs;
+
   private long nextTimestampMs;
 
   private long totalDataIntervalMs;
@@ -67,12 +71,20 @@ public class InfluxDB18Client extends site.ycsb.DB {
     this.tagValueCount = Integer.parseInt(props.getProperty("tag_value_count", "-1"));
     this.debug = getProperties().getProperty("debug", "false").compareTo("true") == 0;
     // 计算记录之间的时间间隔
-    long dataIntervalMs = Long.parseLong(props.getProperty("data_interval_ms", "1"));
+    long dataIntervalMs = Long.parseLong(props.getProperty("data_interval_ms", "100"));
     if (dataIntervalMs <= 0L) {
       dataIntervalMs = 1L;
     }
     this.totalDataIntervalMs = dataIntervalMs * threadCount;
+    LOG.info("dataIntervalMs: {}, threadCount: {}, totalDataIntervalMs: {}",
+            dataIntervalMs, threadCount, totalDataIntervalMs);
     this.startTimestampMs = Long.parseLong(props.getProperty("start_timestamp_ms", System.currentTimeMillis() + ""));
+    this.endTimestampMs = this.startTimestampMs + recordCount * dataIntervalMs;
+
+    SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
+    Log.info("startTimestampMs: {}({}), endTimestampMs: {}({})",
+            startTimestampMs, formatter.format(new Date(startTimestampMs)),
+            endTimestampMs, formatter.format(new Date(endTimestampMs)));
     // 获取下一个时间戳
     this.nextTimestampMs = startTimestampMs + (threadNum * dataIntervalMs);
 
@@ -167,7 +179,7 @@ public class InfluxDB18Client extends site.ycsb.DB {
 
       Map<String, String> tags = getTags(startkey);
       long startTime = this.startTimestampMs + new Random().nextInt(recordCount) * totalDataIntervalMs;
-      long endTime = startTime + recordcount * totalDataIntervalMs;
+      long endTime = startTime + new Random().nextInt(recordCount) * totalDataIntervalMs;
 
       List<Map<String, Object>> scanResult = influxdbHelper.scan(database, rpName, table, fields,
               tags, startTime, endTime);
