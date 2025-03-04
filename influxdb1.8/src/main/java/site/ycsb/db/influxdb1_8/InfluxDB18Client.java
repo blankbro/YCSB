@@ -23,8 +23,6 @@ public class InfluxDB18Client extends site.ycsb.DB {
 
   private static final String TAG_NAME = "tag0";
 
-  private int threadCount;
-
   private int recordCount;
 
   private int tagValueCount;
@@ -43,36 +41,37 @@ public class InfluxDB18Client extends site.ycsb.DB {
 
   private long totalDataIntervalMs;
 
-  private boolean scan;
-
   @Override
   public void init() throws DBException {
     final Properties props = getProperties();
     // 所有线程数
-    this.threadCount = Integer.parseInt(props.getProperty(Client.THREAD_COUNT_PROPERTY));
-    this.recordCount = Integer.parseInt(props.getProperty(Client.RECORD_COUNT_PROPERTY));
+    int threadCount = Integer.parseInt(props.getProperty(Client.THREAD_COUNT_PROPERTY));
     // 当前线程编号
     int threadNum = THREAD_NUM.getAndIncrement();
+
+    // influxdb 连接信息
     final String url = props.getProperty("url", "http://localhost:8086");
     this.database = props.getProperty("database", "ycsb");
     this.rpName = props.getProperty("rp_name", "autogen");
     int replicationFactor = Integer.parseInt(props.getProperty("replication_factor", "1"));
     final String username = props.getProperty("username", "username");
     final String password = props.getProperty("password", "password");
+    // 记录数
+    this.recordCount = Integer.parseInt(props.getProperty(Client.RECORD_COUNT_PROPERTY));
+    // 控制批量写入参数
     int batchSize = Integer.parseInt(props.getProperty("batch_size", "5000"));
     int batchInterval = Integer.parseInt(props.getProperty("batch_interval_ms", "5000"));
     // 查询类型是否为 scan，
     // 为了尽可能把单点查询和范围查询效率提到最大，在数据写入时，需要有不同策略
-    this.scan = props.getProperty("scan", "true").compareTo("true") == 0;
     // tag value count 只有在 select type 为 scan 时，才有用
-    this.tagValueCount = Integer.parseInt(props.getProperty("tagValueCount", "5000"));
+    this.tagValueCount = Integer.parseInt(props.getProperty("tagValueCount", "-1"));
     this.debug = getProperties().getProperty("debug", "false").compareTo("true") == 0;
     // 计算记录之间的时间间隔
     long dataIntervalMs = Long.parseLong(props.getProperty("data_interval_ms", "1"));
     if (dataIntervalMs <= 0L) {
       dataIntervalMs = 1L;
     }
-    this.totalDataIntervalMs = dataIntervalMs * this.threadCount;
+    this.totalDataIntervalMs = dataIntervalMs * threadCount;
     this.startTimestampMs = Long.parseLong(props.getProperty("start_timestamp_ms", System.currentTimeMillis() + ""));
     // 获取下一个时间戳
     this.nextTimestampMs = startTimestampMs + (threadNum * dataIntervalMs);
@@ -103,7 +102,7 @@ public class InfluxDB18Client extends site.ycsb.DB {
   @Override
   public Status read(String table, String key, Set<String> fields, Map<String, ByteIterator> result) {
     try {
-      if (this.scan) {
+      if (this.tagValueCount > 0) {
         LOG.info("当前测试数据是专门测试 scan 用的，终止 read");
         return Status.NOT_IMPLEMENTED;
       }
@@ -158,7 +157,7 @@ public class InfluxDB18Client extends site.ycsb.DB {
   public Status scan(String table, String startkey, int recordcount,
                      Set<String> fields, Vector<HashMap<String, ByteIterator>> result) {
     try {
-      if (!this.scan) {
+      if (this.tagValueCount <= 0) {
         LOG.info("当前测试数据是专门测试 read 用的，终止 scan");
         return Status.NOT_IMPLEMENTED;
       }
@@ -205,7 +204,6 @@ public class InfluxDB18Client extends site.ycsb.DB {
       if (!key.equals(tags.get(TAG_NAME))) {
         fields.put("key0", key);
       }
-
       for (Map.Entry<String, ByteIterator> entry : values.entrySet()) {
         fields.put(entry.getKey(), entry.getValue().toString());
       }
@@ -222,7 +220,7 @@ public class InfluxDB18Client extends site.ycsb.DB {
 
   private Map<String, String> getTags(String key) {
     Map<String, String> tags = new HashMap<>();
-    if (this.scan) {
+    if (this.tagValueCount > 0) {
       tags.put(TAG_NAME, getTag(key));
     } else {
       tags.put(TAG_NAME, key);
