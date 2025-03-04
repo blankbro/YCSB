@@ -104,7 +104,7 @@ public class InfluxDB18Client extends site.ycsb.DB {
   public Status read(String table, String key, Set<String> fields, Map<String, ByteIterator> result) {
     try {
       if (this.scan) {
-        LOG.info("测试数据测试 scan 用的，read 查询直接返回");
+        LOG.info("当前测试数据是专门测试 scan 用的，终止 read");
         return Status.NOT_IMPLEMENTED;
       }
       if (debug) {
@@ -158,6 +158,10 @@ public class InfluxDB18Client extends site.ycsb.DB {
   public Status scan(String table, String startkey, int recordcount,
                      Set<String> fields, Vector<HashMap<String, ByteIterator>> result) {
     try {
+      if (!this.scan) {
+        LOG.info("当前测试数据是专门测试 read 用的，终止 scan");
+        return Status.NOT_IMPLEMENTED;
+      }
 
       Map<String, String> tags = getTags(startkey);
       long startTime = this.startTimestampMs + new Random().nextInt(recordCount) * totalDataIntervalMs;
