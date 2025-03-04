@@ -1,6 +1,5 @@
 package site.ycsb.db.influxdb1_8;
 
-import jdk.internal.org.jline.utils.Log;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import site.ycsb.*;
@@ -82,7 +81,7 @@ public class InfluxDB18Client extends site.ycsb.DB {
     this.endTimestampMs = this.startTimestampMs + recordCount * dataIntervalMs;
 
     SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
-    Log.info("startTimestampMs: {}({}), endTimestampMs: {}({})",
+    LOG.info("startTimestampMs: {}({}), endTimestampMs: {}({})",
             startTimestampMs, formatter.format(new Date(startTimestampMs)),
             endTimestampMs, formatter.format(new Date(endTimestampMs)));
     // 获取下一个时间戳
