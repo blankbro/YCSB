@@ -42,6 +42,8 @@ public class InfluxDB18Client extends site.ycsb.DB {
 
   private long nextTimestampMs;
 
+  private long dataIntervalMs;
+
   private long totalDataIntervalMs;
 
   @Override
@@ -70,7 +72,7 @@ public class InfluxDB18Client extends site.ycsb.DB {
     this.tagValueCount = Integer.parseInt(props.getProperty("tag_value_count", "-1"));
     this.debug = getProperties().getProperty("debug", "false").compareTo("true") == 0;
     // 计算记录之间的时间间隔
-    long dataIntervalMs = Long.parseLong(props.getProperty("data_interval_ms", "100"));
+    dataIntervalMs = Long.parseLong(props.getProperty("data_interval_ms", "100"));
     if (dataIntervalMs <= 0L) {
       dataIntervalMs = 1L;
     }
@@ -177,8 +179,8 @@ public class InfluxDB18Client extends site.ycsb.DB {
 
 
       Map<String, String> tags = getTags(startkey);
-      long startTime = this.startTimestampMs + new Random().nextInt(recordCount) * totalDataIntervalMs;
-      long endTime = startTime + new Random().nextInt(recordCount) * totalDataIntervalMs;
+      long startTime = this.startTimestampMs + new Random().nextInt(recordCount) * dataIntervalMs;
+      long endTime = startTime + new Random().nextInt(recordCount) * dataIntervalMs;
 
       List<Map<String, Object>> scanResult = influxdbHelper.scan(database, rpName, table, fields,
               tags, startTime, endTime);
