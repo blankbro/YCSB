@@ -64,7 +64,7 @@ public class InfluxDB18Client extends site.ycsb.DB {
     // 查询类型是否为 scan，
     // 为了尽可能把单点查询和范围查询效率提到最大，在数据写入时，需要有不同策略
     // tag value count 只有在 select type 为 scan 时，才有用
-    this.tagValueCount = Integer.parseInt(props.getProperty("tagValueCount", "-1"));
+    this.tagValueCount = Integer.parseInt(props.getProperty("tag_value_count", "-1"));
     this.debug = getProperties().getProperty("debug", "false").compareTo("true") == 0;
     // 计算记录之间的时间间隔
     long dataIntervalMs = Long.parseLong(props.getProperty("data_interval_ms", "1"));
