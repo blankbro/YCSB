@@ -102,6 +102,7 @@ public class InfluxDB18Client extends site.ycsb.DB {
   @Override
   public Status read(String table, String key, Set<String> fields, Map<String, ByteIterator> result) {
     try {
+      table = getTableName(table);
       if (this.tagValueCount > 0) {
         LOG.info("当前测试数据是专门测试 scan 用的，终止 read");
         return Status.NOT_IMPLEMENTED;
@@ -157,10 +158,12 @@ public class InfluxDB18Client extends site.ycsb.DB {
   public Status scan(String table, String startkey, int recordcount,
                      Set<String> fields, Vector<HashMap<String, ByteIterator>> result) {
     try {
+      table = getTableName(table);
       if (this.tagValueCount <= 0) {
         LOG.info("当前测试数据是专门测试 read 用的，终止 scan");
         return Status.NOT_IMPLEMENTED;
       }
+
 
       Map<String, String> tags = getTags(startkey);
       long startTime = this.startTimestampMs + new Random().nextInt(recordCount) * totalDataIntervalMs;
@@ -198,6 +201,7 @@ public class InfluxDB18Client extends site.ycsb.DB {
   @Override
   public Status insert(String table, String key, Map<String, ByteIterator> values) {
     try {
+      table = getTableName(table);
       Map<String, String> tags = getTags(key);
 
       Map<String, Object> fields = new HashMap<>();
@@ -230,6 +234,10 @@ public class InfluxDB18Client extends site.ycsb.DB {
 
   private String getTag(String key) {
     return "tag" + (key.hashCode() % this.tagValueCount);
+  }
+
+  private String getTableName(String table) {
+    return table + (this.tagValueCount > 0 ? "_scan" : "_read");
   }
 
   @Override
