@@ -4,9 +4,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import site.ycsb.*;
 
-import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -17,81 +17,116 @@ import java.util.function.Consumer;
  */
 public class InfluxDB18Client extends site.ycsb.DB {
 
-  private static Logger log = LogManager.getLogger(InfluxDB18Client.class);
+  private static final AtomicInteger THREAD_NUM = new AtomicInteger(0);
+
+  private static final Logger LOG = LogManager.getLogger(InfluxDB18Client.class);
 
   private static final String TAG_NAME = "tag0";
 
-  private static final String KEY_NAME = "key0";
+  private int threadCount;
 
-  private InfluxdbHelper influxdbHelper = null;
+  private int recordCount;
+
+  private int tagValueCount;
+
+  private InfluxdbHelper influxdbHelper;
 
   private String database;
 
   private String rpName;
 
-  private Integer replicationFactor;
-
-  private int batchSize;
-
-  private int batchInterval;
-
   private boolean debug;
+
+  private long startTimestampMs;
+
+  private long nextTimestampMs;
+
+  private long totalDataIntervalMs;
+
+  private boolean scan;
 
   @Override
   public void init() throws DBException {
     final Properties props = getProperties();
+    // 所有线程数
+    this.threadCount = Integer.parseInt(props.getProperty(Client.THREAD_COUNT_PROPERTY));
+    this.recordCount = Integer.parseInt(props.getProperty(Client.RECORD_COUNT_PROPERTY));
+    // 当前线程编号
+    int threadNum = THREAD_NUM.getAndIncrement();
     final String url = props.getProperty("url", "http://localhost:8086");
-    database = props.getProperty("database", "ycsb");
-    rpName = props.getProperty("rp_name", "autogen");
-    replicationFactor = Integer.parseInt(props.getProperty("replication_factor", "1"));
+    this.database = props.getProperty("database", "ycsb");
+    this.rpName = props.getProperty("rp_name", "autogen");
+    int replicationFactor = Integer.parseInt(props.getProperty("replication_factor", "1"));
     final String username = props.getProperty("username", "username");
     final String password = props.getProperty("password", "password");
-    batchSize = Integer.parseInt(props.getProperty("batch_size", "5000"));
-    batchInterval = Integer.parseInt(props.getProperty("batch_interval_ms", "5000"));
-    debug = getProperties().getProperty("debug", "false").compareTo("true") == 0;
+    int batchSize = Integer.parseInt(props.getProperty("batch_size", "5000"));
+    int batchInterval = Integer.parseInt(props.getProperty("batch_interval_ms", "5000"));
+    // 查询类型是否为 scan，
+    // 为了尽可能把单点查询和范围查询效率提到最大，在数据写入时，需要有不同策略
+    this.scan = props.getProperty("scan", "true").compareTo("true") == 0;
+    // tag value count 只有在 select type 为 scan 时，才有用
+    this.tagValueCount = Integer.parseInt(props.getProperty("tagValueCount", "5000"));
+    this.debug = getProperties().getProperty("debug", "false").compareTo("true") == 0;
+    // 计算记录之间的时间间隔
+    long dataIntervalMs = Long.parseLong(props.getProperty("data_interval_ms", "1"));
+    if (dataIntervalMs <= 0L) {
+      dataIntervalMs = 1L;
+    }
+    this.totalDataIntervalMs = dataIntervalMs * this.threadCount;
+    this.startTimestampMs = Long.parseLong(props.getProperty("start_timestamp_ms", System.currentTimeMillis() + ""));
+    // 获取下一个时间戳
+    this.nextTimestampMs = startTimestampMs + (threadNum * dataIntervalMs);
 
-    if (influxdbHelper == null) {
-      influxdbHelper = InfluxdbHelper.build(url, username, password);
-      influxdbHelper.setDebug(debug);
-      if (!influxdbHelper.databaseExists(database)) {
-        influxdbHelper.createDatabase(database);
+    if (this.influxdbHelper == null) {
+      this.influxdbHelper = InfluxdbHelper.build(url, username, password);
+      this.influxdbHelper.setDebug(this.debug);
+      if (!this.influxdbHelper.databaseExists(this.database)) {
+        this.influxdbHelper.createDatabase(this.database);
       }
-      influxdbHelper.setDefaultDatabase(database);
+      this.influxdbHelper.setDefaultDatabase(this.database);
       if (replicationFactor > 1) {
-        influxdbHelper.alterReplicationFactor(database, rpName, replicationFactor);
+        this.influxdbHelper.alterReplicationFactor(this.database, this.rpName, replicationFactor);
       }
 
       if (batchSize > 1) {
-        influxdbHelper.enableBatch(batchSize, batchInterval, TimeUnit.MILLISECONDS);
+        this.influxdbHelper.enableBatch(batchSize, batchInterval, TimeUnit.MILLISECONDS);
       }
     }
+  }
+
+  private long getNextTimestampMsAndIncrement() {
+    long result = nextTimestampMs;
+    this.nextTimestampMs += this.totalDataIntervalMs;
+    return result;
   }
 
   @Override
   public Status read(String table, String key, Set<String> fields, Map<String, ByteIterator> result) {
     try {
-      if (debug) {
-        log.info("Reading {}.{} fields: {},", table, key, fields);
+      if (this.scan) {
+        LOG.info("测试数据测试 scan 用的，read 查询直接返回");
+        return Status.NOT_IMPLEMENTED;
       }
-      Map<String, String> where = new HashMap<>();
-      where.put(TAG_NAME, TAG_NAME);
-      where.put(KEY_NAME, key);
+      if (debug) {
+        LOG.info("Reading {}.{} fields: {},", table, key, fields);
+      }
+      Map<String, String> where = getTags(key);
       List<Map<String, Object>> selectResult = influxdbHelper.select(database, rpName, table, fields, where);
       if (selectResult.isEmpty()) {
         return Status.NOT_FOUND;
       }
       if (selectResult.size() != 1) {
-        log.error("InfluxDB query returned {} results", selectResult.size());
+        LOG.error("InfluxDB query returned {} results", selectResult.size());
         return Status.ERROR;
       }
       Map<String, Object> row = selectResult.get(0);
       if (debug) {
-        log.info("select result: {}", row);
+        LOG.info("select result: {}", row);
       }
       objectToByteIterator(row, result);
       return Status.OK;
     } catch (Exception e) {
-      log.error(e.getMessage(), e);
+      LOG.error(e.getMessage(), e);
       return Status.ERROR;
     }
   }
@@ -123,22 +158,14 @@ public class InfluxDB18Client extends site.ycsb.DB {
   public Status scan(String table, String startkey, int recordcount,
                      Set<String> fields, Vector<HashMap<String, ByteIterator>> result) {
     try {
-      Map<String, String> selectStartKeyWhere = new HashMap<>();
-      selectStartKeyWhere.put(TAG_NAME, TAG_NAME);
-      selectStartKeyWhere.put(KEY_NAME, startkey);
-      List<Map<String, Object>> startResult = influxdbHelper.select(database, rpName, table, fields,
-          selectStartKeyWhere);
-      if (startResult.isEmpty()) {
-        return Status.NOT_FOUND;
-      }
-      Map<String, Object> startRow = startResult.get(0);
-      String startTime = (String) startRow.get("time");
 
-      Map<String, String> scanWhere = new HashMap<>();
-      scanWhere.put(TAG_NAME, TAG_NAME);
+      Map<String, String> tags = getTags(startkey);
+      long startTime = this.startTimestampMs + new Random().nextInt(recordCount) * totalDataIntervalMs;
+      long endTime = startTime + recordcount * totalDataIntervalMs;
 
-      List<Map<String, Object>> scanResult = influxdbHelper.scan(database, rpName, table, fields, scanWhere,
-          startTime, recordcount);
+      List<Map<String, Object>> scanResult = influxdbHelper.scan(database, rpName, table, fields,
+              tags, startTime, endTime);
+
       if (scanResult.isEmpty()) {
         return Status.NOT_FOUND;
       }
@@ -154,84 +181,58 @@ public class InfluxDB18Client extends site.ycsb.DB {
 
       return Status.OK;
     } catch (Exception e) {
-      log.error(e.getMessage(), e);
+      LOG.error(e.getMessage(), e);
       return Status.ERROR;
     }
   }
 
   @Override
   public Status update(String table, String key, Map<String, ByteIterator> values) {
-    try {
-      if (debug) {
-        log.info("update {}", key);
-      }
-      // 1. select 这条记录的时间戳
-      Map<String, String> where = new HashMap<>();
-      where.put(TAG_NAME, TAG_NAME);
-      where.put(KEY_NAME, key);
-      List<Map<String, Object>> startResult = influxdbHelper.select(database, rpName, table, null, where);
-      if (startResult.isEmpty()) {
-        return Status.NOT_FOUND;
-      }
-      Map<String, Object> row = startResult.get(0);
-      Instant time = Instant.parse((String) row.get("time"));
-
-      // 2. 重新 insert 相同时间戳数据
-      Map<String, String> tags = new HashMap<>();
-      tags.put(TAG_NAME, TAG_NAME);
-      tags.put(KEY_NAME, key);
-
-      Map<String, Object> fields = new HashMap<>();
-      for (Map.Entry<String, ByteIterator> entry : values.entrySet()) {
-        fields.put(entry.getKey(), entry.getValue().toString());
-      }
-
-      influxdbHelper.insert(database, rpName, table,
-          time.toEpochMilli() * 1_000_000L + time.getNano(), tags, fields);
-
-      return Status.OK;
-    } catch (Exception e) {
-      log.error(e.getMessage(), e);
-      return Status.ERROR;
-    }
+    // 对于时序数据库来说，update 其实也就是一条 insert，此处直接使用 insert
+    return insert(table, key, values);
   }
 
   @Override
   public Status insert(String table, String key, Map<String, ByteIterator> values) {
     try {
-      Map<String, String> tags = new HashMap<>();
-      tags.put(TAG_NAME, TAG_NAME);
-      tags.put(KEY_NAME, key);
+      Map<String, String> tags = getTags(key);
 
       Map<String, Object> fields = new HashMap<>();
+      if (!key.equals(tags.get(TAG_NAME))) {
+        fields.put("key0", key);
+      }
+
       for (Map.Entry<String, ByteIterator> entry : values.entrySet()) {
         fields.put(entry.getKey(), entry.getValue().toString());
       }
 
-      influxdbHelper.insert(database, rpName, table, null, tags, fields);
+      influxdbHelper.insert(database, rpName, table,
+              getNextTimestampMsAndIncrement(), TimeUnit.MILLISECONDS,
+              tags, fields);
       return Status.OK;
     } catch (Exception e) {
-      log.error(e.getMessage(), e);
+      LOG.error(e.getMessage(), e);
       return Status.ERROR;
     }
   }
 
+  private Map<String, String> getTags(String key) {
+    Map<String, String> tags = new HashMap<>();
+    if (this.scan) {
+      tags.put(TAG_NAME, getTag(key));
+    } else {
+      tags.put(TAG_NAME, key);
+    }
+    return tags;
+  }
+
+  private String getTag(String key) {
+    return "tag" + (key.hashCode() % this.tagValueCount);
+  }
+
   @Override
   public Status delete(String table, String key) {
-    try {
-      if (debug) {
-        log.info("Deleting {}", key);
-      }
-      Map<String, String> where = new HashMap<>();
-      where.put(TAG_NAME, TAG_NAME);
-      where.put(KEY_NAME, key);
-
-      influxdbHelper.delete(database, rpName, table, where);
-      return Status.OK;
-    } catch (Exception e) {
-      log.error(e.getMessage(), e);
-      return Status.ERROR;
-    }
+    return Status.NOT_IMPLEMENTED;
   }
 
   @Override

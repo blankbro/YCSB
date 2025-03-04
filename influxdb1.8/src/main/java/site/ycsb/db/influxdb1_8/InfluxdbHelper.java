@@ -50,10 +50,10 @@ public class InfluxdbHelper {
     this.password = password;
 
     OkHttpClient.Builder client = new OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .writeTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
-        .retryOnConnectionFailure(true);
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .writeTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(10, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true);
 
     client.sslSocketFactory(defaultSslSocketFactory(), defaultTrustManager());
     client.hostnameVerifier(noopHostnameVerifier());
@@ -68,7 +68,7 @@ public class InfluxdbHelper {
       SSLContext sslContext = SSLContexts.createDefault();
 
       sslContext.init(null, new TrustManager[]{
-          defaultTrustManager()
+              defaultTrustManager()
       }, new SecureRandom());
       return sslContext.getSocketFactory();
     } catch (Exception e) {
@@ -125,19 +125,22 @@ public class InfluxdbHelper {
 
   public void alterReplicationFactor(String database, String rpName, int replicationFactor) {
     String sql = String.format("ALTER RETENTION POLICY \"%s\" ON \"%s\" REPLICATION %d",
-        rpName, database, replicationFactor);
+            rpName, database, replicationFactor);
     QueryResult queryResult = influxDB.query(new Query(sql));
     if (queryResult.hasError()) {
       throw new RuntimeException(queryResult.getError());
     }
   }
 
-  public void insert(String database, String rpName, String measurement, Long timestamp,
+  public void insert(String database, String rpName, String measurement,
+                     Long timestamp, TimeUnit timeUnit,
                      Map<String, String> tags, Map<String, Object> fields) {
     Point.Builder pointBuilder = Point.measurement(measurement);
 
     if (timestamp == null) {
       pointBuilder.time(nanoTimestamp(), TimeUnit.NANOSECONDS);
+    } else {
+      pointBuilder.time(timestamp, timeUnit);
     }
 
     if (debug) {
@@ -153,8 +156,8 @@ public class InfluxdbHelper {
   public void delete(String database, String rpName, String measurement, Map<String, String> where) {
     String sql = String.format("delete from \"%s\".\"%s\".\"%s\"", database, rpName, measurement);
     String whereSql = where.entrySet().stream()
-        .map(entry -> String.format("\"%s\" = '%s'", entry.getKey(), entry.getValue()))
-        .collect(Collectors.joining(" and "));
+            .map(entry -> String.format("\"%s\" = '%s'", entry.getKey(), entry.getValue()))
+            .collect(Collectors.joining(" and "));
     if (!whereSql.isEmpty()) {
       sql += " where " + whereSql;
     }
@@ -166,10 +169,10 @@ public class InfluxdbHelper {
     String fieldStr = fields == null || fields.isEmpty() ? "*" : String.join(", ", fields);
 
     String sql = String.format("select %s from \"%s\".\"%s\".\"%s\" where time <= now()",
-        fieldStr, database, rpName, measurement);
+            fieldStr, database, rpName, measurement);
     String whereSql = where.entrySet().stream()
-        .map(entry -> String.format("\"%s\" = '%s'", entry.getKey(), entry.getValue()))
-        .collect(Collectors.joining(" and "));
+            .map(entry -> String.format("\"%s\" = '%s'", entry.getKey(), entry.getValue()))
+            .collect(Collectors.joining(" and "));
     if (!whereSql.isEmpty()) {
       sql += " and " + whereSql;
     }
@@ -183,27 +186,27 @@ public class InfluxdbHelper {
   }
 
   public List<Map<String, Object>> scan(String database, String rpName, String measurement,
-                                        Set<String> fields, Map<String, String> where,
-                                        String startTime, int recordcount) {
+                                        Set<String> fields, Map<String, String> where, long startTime, long endTime) {
+
     String fieldStr = fields == null || fields.isEmpty() ? "*" : String.join(", ", fields);
-    String sql = String.format("select %s from \"%s\".\"%s\".\"%s\" where time >= '%s'",
-        fieldStr, database, rpName, measurement, startTime);
+    String sql = String.format("select %s from \"%s\".\"%s\".\"%s\" where time >= %sms and time <= %sms",
+            fieldStr, database, rpName, measurement, startTime, endTime);
 
     String whereSql = where.entrySet().stream()
-        .map(entry -> String.format("\"%s\" = '%s'", entry.getKey(), entry.getValue()))
-        .collect(Collectors.joining(" and "));
+            .map(entry -> String.format("\"%s\" = '%s'", entry.getKey(), entry.getValue()))
+            .collect(Collectors.joining(" and "));
     if (!whereSql.isEmpty()) {
       sql += " and " + whereSql;
     }
 
-    sql += (" limit " + recordcount);
-
     if (debug) {
       log.info("scan SQL: {}", sql);
     }
+
     Query query = new Query(sql);
     QueryResult queryResult = influxDB.query(query);
     List<Map<String, Object>> result = queryResultToList(queryResult);
+
     if (debug) {
       log.info("scan result size: {}", result.size());
     }
