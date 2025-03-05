@@ -119,7 +119,8 @@ public class InfluxdbHelper {
                                         long startTime, long endTime) throws Exception {
 
     String fieldStr = fields == null || fields.isEmpty() ? "*" : String.join(", ", fields);
-    String sql = String.format("select /*+ full_series */ %s from \"%s\".\"%s\".\"%s\" where time >= %sms and time <= %sms",
+    String sql = String.format(
+            "select /*+ full_series */ %s from \"%s\".\"%s\".\"%s\" where time >= %sms and time <= %sms",
             fieldStr, database, rpName, measurement, startTime, endTime);
 
     String whereSql = where.entrySet().stream()
