@@ -42,19 +42,35 @@ public class InfluxdbHelper {
   }
 
   public boolean databaseExists(String database) throws Exception {
-    return pool.borrowObject().databaseExists(database);
+    InfluxDB influxDB = pool.borrowObject();
+    try {
+      return influxDB.databaseExists(database);
+    } finally {
+      pool.returnObject(influxDB);
+    }
   }
 
   public void createDatabase(String database) throws Exception {
-    pool.borrowObject().createDatabase(database);
+    InfluxDB influxDB = pool.borrowObject();
+    try {
+      influxDB.createDatabase(database);
+    } finally {
+      pool.returnObject(influxDB);
+    }
   }
 
   public void alterReplicationFactor(String database, String rpName, int replicationFactor) throws Exception {
     String sql = String.format("ALTER RETENTION POLICY \"%s\" ON \"%s\" REPLICATION %d",
             rpName, database, replicationFactor);
-    QueryResult queryResult = pool.borrowObject().query(new Query(sql));
-    if (queryResult.hasError()) {
-      throw new RuntimeException(queryResult.getError());
+
+    InfluxDB influxDB = pool.borrowObject();
+    try {
+      QueryResult queryResult = influxDB.query(new Query(sql));
+      if (queryResult.hasError()) {
+        throw new RuntimeException(queryResult.getError());
+      }
+    } finally {
+      pool.returnObject(influxDB);
     }
   }
 
@@ -76,7 +92,12 @@ public class InfluxdbHelper {
     pointBuilder.tag(tags);
     pointBuilder.fields(fields);
 
-    pool.borrowObject().write(database, rpName, pointBuilder.build());
+    InfluxDB influxDB = pool.borrowObject();
+    try {
+      influxDB.write(database, rpName, pointBuilder.build());
+    } finally {
+      pool.returnObject(influxDB);
+    }
   }
 
   public void delete(String database, String rpName, String measurement, Map<String, String> where) throws Exception {
@@ -87,7 +108,12 @@ public class InfluxdbHelper {
     if (!whereSql.isEmpty()) {
       sql += " where " + whereSql;
     }
-    pool.borrowObject().query(new Query(sql));
+    InfluxDB influxDB = pool.borrowObject();
+    try {
+      influxDB.query(new Query(sql));
+    } finally {
+      pool.returnObject(influxDB);
+    }
   }
 
   public List<Map<String, Object>> select(String database, String rpName, String measurement,
@@ -106,9 +132,14 @@ public class InfluxdbHelper {
     if (debug) {
       log.info("select SQL: {}", sql);
     }
-    Query query = new Query(sql);
-    QueryResult queryResult = pool.borrowObject().query(query);
-    return queryResultToList(queryResult);
+    InfluxDB influxDB = pool.borrowObject();
+    try {
+      Query query = new Query(sql);
+      QueryResult queryResult = influxDB.query(query);
+      return queryResultToList(queryResult);
+    } finally {
+      pool.returnObject(influxDB);
+    }
   }
 
   public List<Map<String, Object>> scan(String database, String rpName, String measurement,
@@ -130,14 +161,19 @@ public class InfluxdbHelper {
       log.info("scan SQL: {}", sql);
     }
 
-    Query query = new Query(sql);
-    QueryResult queryResult = pool.borrowObject().query(query);
-    List<Map<String, Object>> result = queryResultToList(queryResult);
+    InfluxDB influxDB = pool.borrowObject();
+    try {
+      Query query = new Query(sql);
+      QueryResult queryResult = influxDB.query(query);
+      List<Map<String, Object>> result = queryResultToList(queryResult);
 
-    if (debug) {
-      log.info("scan result size: {}", result.size());
+      if (debug) {
+        log.info("scan result size: {}", result.size());
+      }
+      return result;
+    } finally {
+      pool.returnObject(influxDB);
     }
-    return result;
   }
 
   public List<Map<String, Object>> queryResultToList(QueryResult queryResult) {
