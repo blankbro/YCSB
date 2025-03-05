@@ -183,10 +183,14 @@ public class InfluxDB18Client extends site.ycsb.DB {
 
       Map<String, String> tags = getTags(startkey);
       long startTime = this.startTimestampMs + new Random().nextInt(recordCount / 2) * dataIntervalMs;
-      long endTime = startTime + new Random().nextInt(recordCount / 2) * dataIntervalMs;
+      long endTime = startTime + recordcount * dataIntervalMs;
 
       List<Map<String, Object>> scanResult = influxdbHelper.scan(database, rpName, table, fields,
               tags, startTime, endTime);
+
+      if (debug) {
+        LOG.info("scan recordcount: {}, result count: {}", recordcount, scanResult.size());
+      }
 
       if (scanResult.isEmpty()) {
         return Status.NOT_FOUND;
