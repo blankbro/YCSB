@@ -43,6 +43,10 @@ public class InfluxDBPoolFactory extends BasePooledObjectFactory<InfluxDB> {
     return this;
   }
 
+  private boolean isEnableBatch() {
+    return this.actions > 0 && this.flushDuration > 0;
+  }
+
   @Override
   public InfluxDB create() throws Exception {
     OkHttpClient.Builder client = new OkHttpClient.Builder()
@@ -50,23 +54,28 @@ public class InfluxDBPoolFactory extends BasePooledObjectFactory<InfluxDB> {
         .writeTimeout(10, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
-        .addNetworkInterceptor(new Interceptor() {
-          @NotNull
-          @Override
-          public Response intercept(@NotNull Chain chain) throws IOException {
-            Request newRequest = chain.request().newBuilder().header("Connection", "close").build();
-            return chain.proceed(newRequest);
-          }
-        })
         .sslSocketFactory(defaultSslSocketFactory(), defaultTrustManager())
         .hostnameVerifier(noopHostnameVerifier())
         // 超过阈值的idle连接会由连接池关闭，关闭后sockets进入TIME_WAIT状态等待x系统回收，该参数需根据实际连接数适当调整
         .connectionPool(new ConnectionPool(5, 30, TimeUnit.SECONDS));
 
+    if (isEnableBatch()) {
+      client.addNetworkInterceptor(new Interceptor() {
+        @NotNull
+        @Override
+        public Response intercept(@NotNull Chain chain) throws IOException {
+          Request newRequest = chain.request().newBuilder().header("Connection", "close").build();
+          return chain.proceed(newRequest);
+        }
+      });
+    }
+
     InfluxDB influxDB = InfluxDBFactory.connect(url, username, password, client);
-    if (this.actions > 0 && this.flushDuration > 0) {
+
+    if (isEnableBatch()) {
       influxDB.enableBatch(actions, flushDuration, flushDurationTimeUnit);
     }
+
     return influxDB;
   }
 
