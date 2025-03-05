@@ -1,8 +1,6 @@
 package site.ycsb.db.influxdb1_8;
 
-import okhttp3.ConnectionPool;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
+import okhttp3.*;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -11,8 +9,10 @@ import org.influxdb.InfluxDBFactory;
 import org.influxdb.dto.Point;
 import org.influxdb.dto.Query;
 import org.influxdb.dto.QueryResult;
+import org.jetbrains.annotations.NotNull;
 
 import javax.net.ssl.*;
+import java.io.IOException;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
 import java.time.Instant;
@@ -55,9 +55,13 @@ public class InfluxdbHelper {
             .writeTimeout(10, TimeUnit.SECONDS)
             .readTimeout(10, TimeUnit.SECONDS)
             .retryOnConnectionFailure(true)
-            .addNetworkInterceptor(chain -> {
-              Request newRequest = chain.request().newBuilder().header("Connection", "close").build();
-              return chain.proceed(newRequest);
+            .addNetworkInterceptor(new Interceptor() {
+              @NotNull
+              @Override
+              public Response intercept(@NotNull Chain chain) throws IOException {
+                Request newRequest = chain.request().newBuilder().header("Connection", "close").build();
+                return chain.proceed(newRequest);
+              }
             });
 
     client.sslSocketFactory(defaultSslSocketFactory(), defaultTrustManager());
