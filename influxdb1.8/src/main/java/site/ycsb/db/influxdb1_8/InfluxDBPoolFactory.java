@@ -1,9 +1,6 @@
 package site.ycsb.db.influxdb1_8;
 
-import okhttp3.Interceptor;
 import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
 import org.apache.commons.pool2.BasePooledObjectFactory;
 import org.apache.commons.pool2.PooledObject;
 import org.apache.commons.pool2.impl.DefaultPooledObject;
@@ -12,10 +9,8 @@ import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.apache.http.ssl.SSLContexts;
 import org.influxdb.InfluxDB;
 import org.influxdb.InfluxDBFactory;
-import org.jetbrains.annotations.NotNull;
 
 import javax.net.ssl.*;
-import java.io.IOException;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
@@ -61,18 +56,18 @@ public class InfluxDBPoolFactory extends BasePooledObjectFactory<InfluxDB> {
         .hostnameVerifier(noopHostnameVerifier());
 
     // 超过阈值的idle连接会由连接池关闭，关闭后sockets进入TIME_WAIT状态等待x系统回收，该参数需根据实际连接数适当调整
-    // client.connectionPool(new ConnectionPool(5, 30, TimeUnit.SECONDS));
+//    client.connectionPool(new ConnectionPool(5, 30, TimeUnit.SECONDS));
 
-    if (isEnableBatch()) {
-      client.addNetworkInterceptor(new Interceptor() {
-        @NotNull
-        @Override
-        public Response intercept(@NotNull Chain chain) throws IOException {
-          Request newRequest = chain.request().newBuilder().header("Connection", "close").build();
-          return chain.proceed(newRequest);
-        }
-      });
-    }
+//    if (isEnableBatch()) {
+//      client.addNetworkInterceptor(new Interceptor() {
+//        @NotNull
+//        @Override
+//        public Response intercept(@NotNull Chain chain) throws IOException {
+//          Request newRequest = chain.request().newBuilder().header("Connection", "close").build();
+//          return chain.proceed(newRequest);
+//        }
+//      });
+//    }
 
     InfluxDB influxDB = InfluxDBFactory.connect(url, username, password, client);
 
@@ -138,7 +133,7 @@ public class InfluxDBPoolFactory extends BasePooledObjectFactory<InfluxDB> {
     config.setMaxTotal(100);
     config.setMinIdle(20);
     config.setMaxWait(Duration.ofMillis(30000));
-    config.setTestOnBorrow(true);
+//    config.setTestOnBorrow(true);
     config.setJmxNamePrefix("influx-pool");
     config.setJmxEnabled(false);
     return new GenericObjectPool<>(this, config);

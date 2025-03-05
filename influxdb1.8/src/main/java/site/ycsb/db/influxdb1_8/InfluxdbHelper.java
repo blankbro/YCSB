@@ -1,6 +1,5 @@
 package site.ycsb.db.influxdb1_8;
 
-import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.influxdb.InfluxDB;
@@ -18,9 +17,9 @@ import java.util.stream.Collectors;
  */
 public class InfluxdbHelper {
 
-  private static Logger log = LogManager.getLogger(InfluxdbHelper.class);
+  private static final Logger LOG = LogManager.getLogger(InfluxdbHelper.class);
 
-  private GenericObjectPool<InfluxDB> pool;
+  private InfluxDB influxDB;
 
   private boolean debug;
 
@@ -31,46 +30,34 @@ public class InfluxdbHelper {
   public InfluxdbHelper(String url, String username, String password, int batchSize, int batchIntervalMs) {
     InfluxDBPoolFactory poolFactory = new InfluxDBPoolFactory(url, username, password);
     poolFactory.enableBatch(batchSize, batchIntervalMs, TimeUnit.MILLISECONDS);
-    this.pool = poolFactory.newPool();
+    try {
+      this.influxDB = poolFactory.create();
+    } catch (Exception e) {
+      LOG.error(e.getMessage(), e);
+      throw new RuntimeException(e);
+    }
   }
 
   public void close() {
-    if (this.pool == null) {
-      return;
-    }
-    this.pool.close();
+    this.influxDB.flush();
+    this.influxDB.close();
   }
 
   public boolean databaseExists(String database) throws Exception {
-    InfluxDB influxDB = pool.borrowObject();
-    try {
-      return influxDB.databaseExists(database);
-    } finally {
-      pool.returnObject(influxDB);
-    }
+    return influxDB.databaseExists(database);
   }
 
   public void createDatabase(String database) throws Exception {
-    InfluxDB influxDB = pool.borrowObject();
-    try {
-      influxDB.createDatabase(database);
-    } finally {
-      pool.returnObject(influxDB);
-    }
+    influxDB.createDatabase(database);
   }
 
   public void alterReplicationFactor(String database, String rpName, int replicationFactor) throws Exception {
     String sql = String.format("ALTER RETENTION POLICY \"%s\" ON \"%s\" REPLICATION %d",
             rpName, database, replicationFactor);
 
-    InfluxDB influxDB = pool.borrowObject();
-    try {
-      QueryResult queryResult = influxDB.query(new Query(sql));
-      if (queryResult.hasError()) {
-        throw new RuntimeException(queryResult.getError());
-      }
-    } finally {
-      pool.returnObject(influxDB);
+    QueryResult queryResult = influxDB.query(new Query(sql));
+    if (queryResult.hasError()) {
+      throw new RuntimeException(queryResult.getError());
     }
   }
 
@@ -86,18 +73,13 @@ public class InfluxdbHelper {
     }
 
     if (debug) {
-      log.info(String.format("Inserting %s, tags: %s, fields: %s", measurement, tags, fields));
+      LOG.info(String.format("Inserting %s, tags: %s, fields: %s", measurement, tags, fields));
     }
 
     pointBuilder.tag(tags);
     pointBuilder.fields(fields);
 
-    InfluxDB influxDB = pool.borrowObject();
-    try {
-      influxDB.write(database, rpName, pointBuilder.build());
-    } finally {
-      pool.returnObject(influxDB);
-    }
+    influxDB.write(database, rpName, pointBuilder.build());
   }
 
   public void delete(String database, String rpName, String measurement, Map<String, String> where) throws Exception {
@@ -108,12 +90,7 @@ public class InfluxdbHelper {
     if (!whereSql.isEmpty()) {
       sql += " where " + whereSql;
     }
-    InfluxDB influxDB = pool.borrowObject();
-    try {
-      influxDB.query(new Query(sql));
-    } finally {
-      pool.returnObject(influxDB);
-    }
+    influxDB.query(new Query(sql));
   }
 
   public List<Map<String, Object>> select(String database, String rpName, String measurement,
@@ -130,16 +107,11 @@ public class InfluxdbHelper {
     }
 
     if (debug) {
-      log.info("select SQL: {}", sql);
+      LOG.info("select SQL: {}", sql);
     }
-    InfluxDB influxDB = pool.borrowObject();
-    try {
-      Query query = new Query(sql);
-      QueryResult queryResult = influxDB.query(query);
-      return queryResultToList(queryResult);
-    } finally {
-      pool.returnObject(influxDB);
-    }
+    Query query = new Query(sql);
+    QueryResult queryResult = influxDB.query(query);
+    return queryResultToList(queryResult);
   }
 
   public List<Map<String, Object>> scan(String database, String rpName, String measurement,
@@ -158,22 +130,17 @@ public class InfluxdbHelper {
     }
 
     if (debug) {
-      log.info("scan SQL: {}", sql);
+      LOG.info("scan SQL: {}", sql);
     }
 
-    InfluxDB influxDB = pool.borrowObject();
-    try {
-      Query query = new Query(sql);
-      QueryResult queryResult = influxDB.query(query);
-      List<Map<String, Object>> result = queryResultToList(queryResult);
+    Query query = new Query(sql);
+    QueryResult queryResult = influxDB.query(query);
+    List<Map<String, Object>> result = queryResultToList(queryResult);
 
-      if (debug) {
-        log.info("scan result size: {}", result.size());
-      }
-      return result;
-    } finally {
-      pool.returnObject(influxDB);
+    if (debug) {
+      LOG.info("scan result size: {}", result.size());
     }
+    return result;
   }
 
   public List<Map<String, Object>> queryResultToList(QueryResult queryResult) {

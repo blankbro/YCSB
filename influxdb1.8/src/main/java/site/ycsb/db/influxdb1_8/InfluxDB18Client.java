@@ -28,7 +28,7 @@ public class InfluxDB18Client extends site.ycsb.DB {
 
   private int tagValueCount;
 
-  private static InfluxdbHelper influxdbHelper;
+  private InfluxdbHelper influxdbHelper;
 
   private String database;
 
@@ -92,21 +92,19 @@ public class InfluxDB18Client extends site.ycsb.DB {
     // 获取下一个时间戳
     this.nextTimestampMs = startTimestampMs + (threadNum * dataIntervalMs);
 
-    synchronized (THREAD_NUM) {
-      if (influxdbHelper == null) {
-        influxdbHelper = new InfluxdbHelper(url, username, password, batchSize, batchInterval);
-        influxdbHelper.setDebug(debug);
-        try {
-          if (!influxdbHelper.databaseExists(this.database)) {
-            influxdbHelper.createDatabase(this.database);
-          }
-          if (replicationFactor > 1) {
-            influxdbHelper.alterReplicationFactor(this.database, this.rpName, replicationFactor);
-          }
-        } catch (Exception e) {
-          LOG.error(e.getMessage(), e);
-          throw new RuntimeException(e);
+    if (influxdbHelper == null) {
+      influxdbHelper = new InfluxdbHelper(url, username, password, batchSize, batchInterval);
+      influxdbHelper.setDebug(debug);
+      try {
+        if (!influxdbHelper.databaseExists(this.database)) {
+          influxdbHelper.createDatabase(this.database);
         }
+        if (replicationFactor > 1) {
+          influxdbHelper.alterReplicationFactor(this.database, this.rpName, replicationFactor);
+        }
+      } catch (Exception e) {
+        LOG.error(e.getMessage(), e);
+        throw new RuntimeException(e);
       }
     }
   }
