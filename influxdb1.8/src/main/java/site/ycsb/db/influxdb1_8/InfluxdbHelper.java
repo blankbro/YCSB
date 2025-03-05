@@ -2,6 +2,7 @@ package site.ycsb.db.influxdb1_8;
 
 import okhttp3.ConnectionPool;
 import okhttp3.OkHttpClient;
+import okhttp3.Request;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -53,7 +54,11 @@ public class InfluxdbHelper {
             .connectTimeout(10, TimeUnit.SECONDS)
             .writeTimeout(10, TimeUnit.SECONDS)
             .readTimeout(10, TimeUnit.SECONDS)
-            .retryOnConnectionFailure(true);
+            .retryOnConnectionFailure(true)
+            .addNetworkInterceptor(chain -> {
+              Request newRequest = chain.request().newBuilder().header("Connection", "close").build();
+              return chain.proceed(newRequest);
+            });
 
     client.sslSocketFactory(defaultSslSocketFactory(), defaultTrustManager());
     client.hostnameVerifier(noopHostnameVerifier());
