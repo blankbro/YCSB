@@ -77,15 +77,18 @@ public class InfluxDB18Client extends site.ycsb.DB {
       dataIntervalMs = 1L;
     }
     this.totalDataIntervalMs = dataIntervalMs * threadCount;
-    LOG.info("dataIntervalMs: {}, threadCount: {}, totalDataIntervalMs: {}",
-            dataIntervalMs, threadCount, totalDataIntervalMs);
     this.startTimestampMs = Long.parseLong(props.getProperty("start_timestamp_ms", System.currentTimeMillis() + ""));
     this.endTimestampMs = this.startTimestampMs + recordCount * dataIntervalMs;
 
-    SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
-    LOG.info("startTimestampMs: {}({}), endTimestampMs: {}({})",
-            startTimestampMs, formatter.format(new Date(startTimestampMs)),
-            endTimestampMs, formatter.format(new Date(endTimestampMs)));
+    if (threadNum == 0) {
+      LOG.info("dataIntervalMs: {}, threadCount: {}, totalDataIntervalMs: {}",
+              dataIntervalMs, threadCount, totalDataIntervalMs);
+      SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
+      LOG.info("startTimestampMs: {}({}), endTimestampMs: {}({})",
+              startTimestampMs, formatter.format(new Date(startTimestampMs)),
+              endTimestampMs, formatter.format(new Date(endTimestampMs)));
+    }
+
     // 获取下一个时间戳
     this.nextTimestampMs = startTimestampMs + (threadNum * dataIntervalMs);
 
