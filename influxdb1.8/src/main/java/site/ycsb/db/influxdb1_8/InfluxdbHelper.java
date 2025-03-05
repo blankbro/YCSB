@@ -116,7 +116,7 @@ public class InfluxdbHelper {
 
   public List<Map<String, Object>> scan(String database, String rpName, String measurement,
                                         Set<String> fields, Map<String, String> where,
-                                        long startTime, long endTime) throws Exception {
+                                        long startTime, long endTime, int recordcount) throws Exception {
 
     String fieldStr = fields == null || fields.isEmpty() ? "*" : String.join(", ", fields);
     String sql = String.format(
@@ -129,6 +129,8 @@ public class InfluxdbHelper {
     if (!whereSql.isEmpty()) {
       sql += " and " + whereSql;
     }
+
+    sql += " limit " + recordcount;
 
     if (debug) {
       LOG.info("scan SQL: {}", sql);
