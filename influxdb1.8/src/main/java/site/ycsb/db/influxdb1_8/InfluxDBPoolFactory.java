@@ -18,6 +18,9 @@ import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Influx DB Pool Factory.
+ */
 public class InfluxDBPoolFactory extends BasePooledObjectFactory<InfluxDB> {
 
   private String url;
@@ -33,10 +36,10 @@ public class InfluxDBPoolFactory extends BasePooledObjectFactory<InfluxDB> {
     this.password = password;
   }
 
-  public InfluxDBPoolFactory enableBatch(final int actions, final int flushDuration, final TimeUnit flushDurationTimeUnit) {
-    this.actions = actions;
-    this.flushDuration = flushDuration;
-    this.flushDurationTimeUnit = flushDurationTimeUnit;
+  public InfluxDBPoolFactory enableBatch(int a, int fd, TimeUnit fdt) {
+    this.actions = a;
+    this.flushDuration = fd;
+    this.flushDurationTimeUnit = fdt;
     return this;
   }
 

@@ -112,7 +112,8 @@ public class InfluxdbHelper {
   }
 
   public List<Map<String, Object>> scan(String database, String rpName, String measurement,
-                                        Set<String> fields, Map<String, String> where, long startTime, long endTime) throws Exception {
+                                        Set<String> fields, Map<String, String> where,
+                                        long startTime, long endTime) throws Exception {
 
     String fieldStr = fields == null || fields.isEmpty() ? "*" : String.join(", ", fields);
     String sql = String.format("select %s from \"%s\".\"%s\".\"%s\" where time >= %sms and time <= %sms",
