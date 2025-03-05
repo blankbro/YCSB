@@ -55,9 +55,10 @@ public class InfluxDBPoolFactory extends BasePooledObjectFactory<InfluxDB> {
         .readTimeout(10, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
         .sslSocketFactory(defaultSslSocketFactory(), defaultTrustManager())
-        .hostnameVerifier(noopHostnameVerifier())
-        // 超过阈值的idle连接会由连接池关闭，关闭后sockets进入TIME_WAIT状态等待x系统回收，该参数需根据实际连接数适当调整
-        .connectionPool(new ConnectionPool(5, 30, TimeUnit.SECONDS));
+        .hostnameVerifier(noopHostnameVerifier());
+
+    // 超过阈值的idle连接会由连接池关闭，关闭后sockets进入TIME_WAIT状态等待x系统回收，该参数需根据实际连接数适当调整
+    // client.connectionPool(new ConnectionPool(5, 30, TimeUnit.SECONDS));
 
     if (isEnableBatch()) {
       client.addNetworkInterceptor(new Interceptor() {
