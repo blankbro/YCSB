@@ -1,6 +1,9 @@
 package site.ycsb.db.influxdb1_8;
 
-import okhttp3.*;
+import okhttp3.Interceptor;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 import org.apache.commons.pool2.BasePooledObjectFactory;
 import org.apache.commons.pool2.PooledObject;
 import org.apache.commons.pool2.impl.DefaultPooledObject;
@@ -99,9 +102,7 @@ public class InfluxDBPoolFactory extends BasePooledObjectFactory<InfluxDB> {
     try {
       SSLContext sslContext = SSLContexts.createDefault();
 
-      sslContext.init(null, new TrustManager[]{
-          defaultTrustManager()
-      }, new SecureRandom());
+      sslContext.init(null, new TrustManager[]{defaultTrustManager()}, new SecureRandom());
       return sslContext.getSocketFactory();
     } catch (Exception e) {
       throw new RuntimeException(e);
