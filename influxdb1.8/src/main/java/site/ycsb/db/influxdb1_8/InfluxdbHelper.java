@@ -1,20 +1,13 @@
 package site.ycsb.db.influxdb1_8;
 
-import okhttp3.*;
-import org.apache.http.ssl.SSLContexts;
+import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.influxdb.InfluxDB;
-import org.influxdb.InfluxDBFactory;
 import org.influxdb.dto.Point;
 import org.influxdb.dto.Query;
 import org.influxdb.dto.QueryResult;
-import org.jetbrains.annotations.NotNull;
 
-import javax.net.ssl.*;
-import java.io.IOException;
-import java.security.SecureRandom;
-import java.security.cert.X509Certificate;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -27,13 +20,7 @@ public class InfluxdbHelper {
 
   private static Logger log = LogManager.getLogger(InfluxdbHelper.class);
 
-  private String url;
-
-  private String username;
-
-  private String password;
-
-  private InfluxDB influxDB;
+  private GenericObjectPool<InfluxDB> pool;
 
   private boolean debug;
 
@@ -41,101 +28,31 @@ public class InfluxdbHelper {
     this.debug = debug;
   }
 
-  public static InfluxdbHelper build(String url, String username, String password) {
-    return new InfluxdbHelper(url, username, password);
-  }
-
-  public InfluxdbHelper(String url, String username, String password) {
-    this.url = url;
-    this.username = username;
-    this.password = password;
-
-    OkHttpClient.Builder client = new OkHttpClient.Builder()
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .writeTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(10, TimeUnit.SECONDS)
-            .retryOnConnectionFailure(true)
-            .addNetworkInterceptor(new Interceptor() {
-              @NotNull
-              @Override
-              public Response intercept(@NotNull Chain chain) throws IOException {
-                Request newRequest = chain.request().newBuilder().header("Connection", "close").build();
-                return chain.proceed(newRequest);
-              }
-            });
-
-    client.sslSocketFactory(defaultSslSocketFactory(), defaultTrustManager());
-    client.hostnameVerifier(noopHostnameVerifier());
-    // 超过阈值的idle连接会由连接池关闭，关闭后sockets进入TIME_WAIT状态等待x系统回收，该参数需根据实际连接数适当调整
-    client.connectionPool(new ConnectionPool(5, 30, TimeUnit.SECONDS));
-
-    this.influxDB = InfluxDBFactory.connect(url, username, password, client);
-  }
-
-  private static SSLSocketFactory defaultSslSocketFactory() {
-    try {
-      SSLContext sslContext = SSLContexts.createDefault();
-
-      sslContext.init(null, new TrustManager[]{
-              defaultTrustManager()
-      }, new SecureRandom());
-      return sslContext.getSocketFactory();
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    }
-  }
-
-  private static X509TrustManager defaultTrustManager() {
-    return new X509TrustManager() {
-      public X509Certificate[] getAcceptedIssuers() {
-        return new X509Certificate[0];
-      }
-
-      public void checkClientTrusted(X509Certificate[] certs, String authType) {
-      }
-
-      public void checkServerTrusted(X509Certificate[] certs, String authType) {
-      }
-    };
-  }
-
-  private static HostnameVerifier noopHostnameVerifier() {
-    return new HostnameVerifier() {
-      @Override
-      public boolean verify(final String s, final SSLSession sslSession) {
-        // true 表示使用ssl方式，但是不校验ssl证书，建议使用这种方式
-        return true;
-      }
-    };
+  public InfluxdbHelper(String url, String username, String password, int batchSize, int batchIntervalMs) {
+    InfluxDBPoolFactory poolFactory = new InfluxDBPoolFactory(url, username, password);
+    poolFactory.enableBatch(batchSize, batchIntervalMs, TimeUnit.MILLISECONDS);
+    this.pool = poolFactory.newPool();
   }
 
   public void close() {
-    if (influxDB == null) {
+    if (this.pool == null) {
       return;
     }
-    influxDB.close();
+    this.pool.close();
   }
 
-  public void setDefaultDatabase(String database) {
-    influxDB.setDatabase(database);
+  public boolean databaseExists(String database) throws Exception {
+    return pool.borrowObject().databaseExists(database);
   }
 
-  public void enableBatch(final int actions, final int flushDuration, final TimeUnit flushDurationTimeUnit) {
-    influxDB.enableBatch(actions, flushDuration, flushDurationTimeUnit);
+  public void createDatabase(String database) throws Exception {
+    pool.borrowObject().createDatabase(database);
   }
 
-  public boolean databaseExists(String database) {
-    return influxDB.databaseExists(database);
-  }
-
-  public void createDatabase(String database) {
-    influxDB.createDatabase(database);
-  }
-
-  public void alterReplicationFactor(String database, String rpName, int replicationFactor) {
+  public void alterReplicationFactor(String database, String rpName, int replicationFactor) throws Exception {
     String sql = String.format("ALTER RETENTION POLICY \"%s\" ON \"%s\" REPLICATION %d",
             rpName, database, replicationFactor);
-    QueryResult queryResult = influxDB.query(new Query(sql));
+    QueryResult queryResult = pool.borrowObject().query(new Query(sql));
     if (queryResult.hasError()) {
       throw new RuntimeException(queryResult.getError());
     }
@@ -143,7 +60,7 @@ public class InfluxdbHelper {
 
   public void insert(String database, String rpName, String measurement,
                      Long timestamp, TimeUnit timeUnit,
-                     Map<String, String> tags, Map<String, Object> fields) {
+                     Map<String, String> tags, Map<String, Object> fields) throws Exception {
     Point.Builder pointBuilder = Point.measurement(measurement);
 
     if (timestamp == null) {
@@ -159,10 +76,10 @@ public class InfluxdbHelper {
     pointBuilder.tag(tags);
     pointBuilder.fields(fields);
 
-    influxDB.write(database, rpName, pointBuilder.build());
+    pool.borrowObject().write(database, rpName, pointBuilder.build());
   }
 
-  public void delete(String database, String rpName, String measurement, Map<String, String> where) {
+  public void delete(String database, String rpName, String measurement, Map<String, String> where) throws Exception {
     String sql = String.format("delete from \"%s\".\"%s\".\"%s\"", database, rpName, measurement);
     String whereSql = where.entrySet().stream()
             .map(entry -> String.format("\"%s\" = '%s'", entry.getKey(), entry.getValue()))
@@ -170,11 +87,11 @@ public class InfluxdbHelper {
     if (!whereSql.isEmpty()) {
       sql += " where " + whereSql;
     }
-    influxDB.query(new Query(sql));
+    pool.borrowObject().query(new Query(sql));
   }
 
   public List<Map<String, Object>> select(String database, String rpName, String measurement,
-                                          Set<String> fields, Map<String, String> where) {
+                                          Set<String> fields, Map<String, String> where) throws Exception {
     String fieldStr = fields == null || fields.isEmpty() ? "*" : String.join(", ", fields);
 
     String sql = String.format("select %s from \"%s\".\"%s\".\"%s\" where time <= now()",
@@ -190,12 +107,12 @@ public class InfluxdbHelper {
       log.info("select SQL: {}", sql);
     }
     Query query = new Query(sql);
-    QueryResult queryResult = influxDB.query(query);
+    QueryResult queryResult = pool.borrowObject().query(query);
     return queryResultToList(queryResult);
   }
 
   public List<Map<String, Object>> scan(String database, String rpName, String measurement,
-                                        Set<String> fields, Map<String, String> where, long startTime, long endTime) {
+                                        Set<String> fields, Map<String, String> where, long startTime, long endTime) throws Exception {
 
     String fieldStr = fields == null || fields.isEmpty() ? "*" : String.join(", ", fields);
     String sql = String.format("select %s from \"%s\".\"%s\".\"%s\" where time >= %sms and time <= %sms",
@@ -213,7 +130,7 @@ public class InfluxdbHelper {
     }
 
     Query query = new Query(sql);
-    QueryResult queryResult = influxDB.query(query);
+    QueryResult queryResult = pool.borrowObject().query(query);
     List<Map<String, Object>> result = queryResultToList(queryResult);
 
     if (debug) {

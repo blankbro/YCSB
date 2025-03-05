@@ -64,8 +64,8 @@ public class InfluxDB18Client extends site.ycsb.DB {
     // 记录数
     this.recordCount = Integer.parseInt(props.getProperty(Client.RECORD_COUNT_PROPERTY));
     // 控制批量写入参数
-    int batchSize = Integer.parseInt(props.getProperty("batch_size", "5000"));
-    int batchInterval = Integer.parseInt(props.getProperty("batch_interval_ms", "5000"));
+    int batchSize = Integer.parseInt(props.getProperty("batch_size", "0"));
+    int batchInterval = Integer.parseInt(props.getProperty("batch_interval_ms", "0"));
     // 查询类型是否为 scan，
     // 为了尽可能把单点查询和范围查询效率提到最大，在数据写入时，需要有不同策略
     // tag value count 只有在 select type 为 scan 时，才有用
@@ -90,18 +90,18 @@ public class InfluxDB18Client extends site.ycsb.DB {
     this.nextTimestampMs = startTimestampMs + (threadNum * dataIntervalMs);
 
     if (this.influxdbHelper == null) {
-      this.influxdbHelper = InfluxdbHelper.build(url, username, password);
+      this.influxdbHelper = new InfluxdbHelper(url, username, password, batchSize, batchInterval);
       this.influxdbHelper.setDebug(this.debug);
-      if (!this.influxdbHelper.databaseExists(this.database)) {
-        this.influxdbHelper.createDatabase(this.database);
-      }
-      this.influxdbHelper.setDefaultDatabase(this.database);
-      if (replicationFactor > 1) {
-        this.influxdbHelper.alterReplicationFactor(this.database, this.rpName, replicationFactor);
-      }
-
-      if (batchSize > 1) {
-        this.influxdbHelper.enableBatch(batchSize, batchInterval, TimeUnit.MILLISECONDS);
+      try {
+        if (!this.influxdbHelper.databaseExists(this.database)) {
+          this.influxdbHelper.createDatabase(this.database);
+        }
+        if (replicationFactor > 1) {
+          this.influxdbHelper.alterReplicationFactor(this.database, this.rpName, replicationFactor);
+        }
+      } catch (Exception e) {
+        LOG.error(e.getMessage(), e);
+        throw new RuntimeException(e);
       }
     }
   }
