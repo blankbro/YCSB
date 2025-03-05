@@ -138,9 +138,6 @@ public class InfluxdbHelper {
     QueryResult queryResult = influxDB.query(query);
     List<Map<String, Object>> result = queryResultToList(queryResult);
 
-    if (debug) {
-      LOG.info("scan result size: {}", result.size());
-    }
     return result;
   }
 
